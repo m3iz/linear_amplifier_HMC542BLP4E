@@ -1,0 +1,9 @@
+../Core/Src/main.c:60:13:delay_ns	2
+../Core/Src/main.c:67:6:MCP4922_Write	1
+../Core/Src/main.c:89:6:MCP4922_Send	1
+../Core/Src/main.c:99:13:HMC_WriteBit	1
+../Core/Src/main.c:110:6:HMC_SetAttenuation	5
+../Core/Src/main.c:137:6:HMC_Reset	1
+../Core/Src/main.c:148:5:main	2
+../Core/Src/main.c:220:6:SystemClock_Config	3
+../Core/Src/main.c:262:6:Error_Handler	1
