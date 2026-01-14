@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "adc.h"
 #include "spi.h"
 #include "tim.h"
 #include "gpio.h"
@@ -61,6 +60,9 @@ void SystemClock_Config(void);
 int ary = 0;
 int rssi = 0;
 
+int ary2 = 0;
+int rssi2 = 0;
+
 typedef struct {
 	uint16_t dac_value;   // Значение ЦАП
 	int8_t rssi_level;    // Уровень RSSI
@@ -69,8 +71,8 @@ typedef struct {
 // Массив структур с данными из таблицы
 DAC_RSSI dac_rssi_table[] = { { 0, -17 }, { 20, -16 }, { 50, -15 },
 		{ 100, -14 }, { 170, -13 }, { 270, -12 }, { 400, -11 }, { 550, -10 }, {
-				800, -9 }, // Предположим, что диапазон 1500-1600 представлен как 1500
-		{ 1200, -8 }, { 1700, -7 }, { 2400, -6 }, { 3600, -5 }, };
+				800, -9 },
+		{ 1200, -8 }, { 1700, -7 }, { 2400, -6 }, { 4095, -5 }, };
 
 // Размер массива
 #define TABLE_SIZE (sizeof(dac_rssi_table) / sizeof(DAC_RSSI))
@@ -124,6 +126,16 @@ static void HMC_WriteBit(uint8_t bit) {
 	delay_ns(30);
 }
 
+static void HMC_WriteBit2(uint8_t bit) {
+	HAL_GPIO_WritePin(DATA2_GPIO_Port, DATA2_Pin,
+			bit ? GPIO_PIN_SET : GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(SHIFT_CLK2_GPIO_Port, SHIFT_CLK2_Pin, GPIO_PIN_RESET);
+	delay_ns(30);
+	HAL_GPIO_WritePin(SHIFT_CLK2_GPIO_Port, SHIFT_CLK2_Pin, GPIO_PIN_SET);
+
+	delay_ns(30);
+}
+
 // Установка затухания
 void HMC_SetAttenuation(float attenuation_db, uint8_t data) {
 	if (attenuation_db < 0.0f)
@@ -150,6 +162,31 @@ void HMC_SetAttenuation(float attenuation_db, uint8_t data) {
 	delay_ns(40); // Удержание LE
 	HAL_GPIO_WritePin(LE_GPIO_Port, LE_Pin, GPIO_PIN_RESET);
 }
+void HMC_SetAttenuation2(float attenuation_db, uint8_t data) {
+	if (attenuation_db < 0.0f)
+		attenuation_db = 0.0f;
+	if (attenuation_db > 31.5f)
+		attenuation_db = 31.5f;
+
+	uint8_t att_half_db = (uint8_t) (attenuation_db * 2.0f + 0.5f); // округление до ближайшего
+	if (att_half_db > 63)
+		att_half_db = 63;
+	//0b10011100
+
+	//data = 0b10110100; // данные по даташиту (6 бит сдвинуты на 2 влево)
+
+	HAL_GPIO_WritePin(LE2_GPIO_Port, LE2_Pin, GPIO_PIN_RESET);
+
+	// Отправка всех 8 бит MSB first
+	for (int i = 7; i >= 0; i--) {
+		HMC_WriteBit2((data >> i) & 0x01);
+	}
+
+	delay_ns(40); // Время установки LE
+	HAL_GPIO_WritePin(LE2_GPIO_Port, LE2_Pin, GPIO_PIN_SET);
+	delay_ns(40); // Удержание LE
+	HAL_GPIO_WritePin(LE2_GPIO_Port, LE2_Pin, GPIO_PIN_RESET);
+}
 
 // Сброс устройства
 void HMC_Reset(void) {
@@ -158,11 +195,20 @@ void HMC_Reset(void) {
 	HAL_GPIO_WritePin(RST_GPIO_Port, RST_Pin, GPIO_PIN_SET);
 }
 
+void HMC2_Reset(void) {
+	HAL_GPIO_WritePin(RST2_GPIO_Port, RST2_Pin, GPIO_PIN_RESET);
+	HAL_Delay(1);
+	HAL_GPIO_WritePin(RST2_GPIO_Port, RST2_Pin, GPIO_PIN_SET);
+}
+
 // Функция для установки значения ЦАП
-void set_dac_value(uint16_t value) {
-    // Здесь должен быть код для установки значения ЦАП
-    // Например, если используется HAL для STM32:
-	MCP4922_Write(0, value);
+void set_dac_value(uint16_t value, int num) {
+	// Здесь должен быть код для установки значения ЦАП
+	// Например, если используется HAL для STM32:
+	if (num == 0) {
+		MCP4922_Write(0, value);
+	} else
+		MCP4922_Write(1, value);
 }
 /* USER CODE END 0 */
 
@@ -196,7 +242,6 @@ int main(void) {
 	MX_GPIO_Init();
 	MX_TIM2_Init();
 	MX_SPI1_Init();
-	MX_ADC1_Init();
 	/* USER CODE BEGIN 2 */
 	// Инициализация начального состояния пинов
 	HAL_GPIO_WritePin(LE_GPIO_Port, LE_Pin, GPIO_PIN_SET);
@@ -204,15 +249,23 @@ int main(void) {
 	HAL_GPIO_WritePin(DATA_GPIO_Port, DATA_Pin, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(RST_GPIO_Port, RST_Pin, GPIO_PIN_SET);
 
+	HAL_GPIO_WritePin(LE2_GPIO_Port, LE2_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(SHIFT_CLK2_GPIO_Port, SHIFT_CLK2_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(DATA2_GPIO_Port, DATA2_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(RST2_GPIO_Port, RST2_Pin, GPIO_PIN_SET);
+
 	// Сброс чипа
 	HMC_Reset();
+	HMC2_Reset();
 
 	HMC_SetAttenuation(15.5f, 0b10011100);
+	HMC_SetAttenuation2(15.5f, 0b10011100);
 	HAL_GPIO_WritePin(SHDN_GPIO_Port, SHDN_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(LDAC_GPIO_Port, LDAC_Pin, GPIO_PIN_RESET);
 	HAL_Delay(100);
-	MCP4922_Write(0, 0); //1230 - 1В
-
+	MCP4922_Write(1, 4095); //1230 - 1В
+	HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
+	//HMC_SetAttenuation(15.5f, 0b01011100);
 	/* USER CODE END 2 */
 
 	/* Infinite loop */
@@ -221,12 +274,12 @@ int main(void) {
 	while (1) {
 		// Переменная для хранения найденного уровня RSSI
 		int8_t found_rssi_level = 0;
-
+		int8_t found_rssi_level2 = 0;
 		// Цикл по таблице значений ЦАП
-		for (uint8_t i = 0; i < TABLE_SIZE; i++) {
+		for (uint8_t i = TABLE_SIZE - 1; i > 0; i--) {
 			// Установка текущего значения ЦАП
-			set_dac_value(dac_rssi_table[i].dac_value);
-
+			set_dac_value(dac_rssi_table[i].dac_value, 0);
+			set_dac_value(dac_rssi_table[i].dac_value, 1);
 			// Ожидание некоторого времени для стабилизации сигнала
 			HAL_Delay(10); // Можно настроить время задержки
 
@@ -236,19 +289,63 @@ int main(void) {
 				// Если GPIO нога установлена в 1, запоминаем уровень RSSI
 				found_rssi_level = dac_rssi_table[i].rssi_level;
 				rssi = found_rssi_level;
-				HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
-				break; // Выходим из цикла, так как нашли нужный уровень
+				//HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
+				if (rssi == -5 && ary == 0) {
+					//HMC_SetAttenuation(15.5f, 0b01011100);
+					ary = 1;
+					HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
+					HAL_Delay(100);
+					MCP4922_Write(0, 200);
+					HAL_Delay(100);
+					while (1) {
+						if (HAL_GPIO_ReadPin(RSII_Q1_EX_GPIO_Port,
+						RSII_Q1_EX_Pin) == GPIO_PIN_RESET) {
+							//HMC_SetAttenuation(15.5f, 0b10011100);
+							HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin,
+									GPIO_PIN_RESET);
+							ary2 = 0;
+							break;
+						}
+
+					}
+				}
+			}
+			if (HAL_GPIO_ReadPin(RSII_Q2_EX_GPIO_Port, RSII_Q2_EX_Pin)
+					== GPIO_PIN_SET) {
+				// Если GPIO нога установлена в 1, запоминаем уровень RSSI
+				found_rssi_level2 = dac_rssi_table[i].rssi_level;
+				rssi2 = found_rssi_level2;
+				//HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
+				if (rssi2 == -5 && ary2 == 0) {
+					//HMC_SetAttenuation2(15.5f, 0b01011100);
+					ary2 = 1;
+					HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
+					HAL_Delay(100);
+					MCP4922_Write(1, 270);
+					HAL_Delay(100);
+					while (1) {
+						if (HAL_GPIO_ReadPin(RSII_Q2_EX_GPIO_Port,
+						RSII_Q2_EX_Pin) == GPIO_PIN_RESET) {
+							//HMC_SetAttenuation2(15.5f, 0b10011100);
+							HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin,
+									GPIO_PIN_RESET);
+							ary2 = 0;
+							break;
+						}
+
+					}
+				}
 			}
 		}
 		/*if (HAL_GPIO_ReadPin(RSII_Q1_EX_GPIO_Port, RSII_Q1_EX_Pin)
-					== GPIO_PIN_SET) {
-				HMC_SetAttenuation(15.5f, 0b01011100);
-				HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
-			} else {
-				HMC_SetAttenuation(15.5f, 0b10011100);
-				HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
-			}
-			*/
+		 == GPIO_PIN_SET) {
+		 HMC_SetAttenuation(15.5f, 0b01011100);
+		 HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
+		 } else {
+		 HMC_SetAttenuation(15.5f, 0b10011100);
+		 HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
+		 }
+		 */
 		//MCP4922_Write(0, 1028);  // Канал A, выдаёт примерно 3.0 В
 		//MCP4922_Write(1, 1028);  // Канал A, выдаёт примерно 3.0 В
 		//MCP4922_Send(controlA, dataA);
@@ -267,7 +364,6 @@ int main(void) {
 void SystemClock_Config(void) {
 	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
 	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
-	RCC_PeriphCLKInitTypeDef PeriphClkInit = { 0 };
 
 	/** Initializes the RCC Oscillators according to the specified parameters
 	 * in the RCC_OscInitTypeDef structure.
@@ -292,11 +388,6 @@ void SystemClock_Config(void) {
 	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
 	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK) {
-		Error_Handler();
-	}
-	PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC12;
-	PeriphClkInit.Adc12ClockSelection = RCC_ADC12PLLCLK_DIV1;
-	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
 		Error_Handler();
 	}
 }

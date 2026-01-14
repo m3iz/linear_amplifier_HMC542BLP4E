@@ -53,58 +53,40 @@ void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOC, SHIFT_CLK_Pin|RST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, SHDN_Pin|LE_Pin|CS2_Pin|Chip_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, SHDN_Pin|LE_Pin|SHIFT_CLK2_Pin|Chip_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LED3_Pin|LDAC_Pin|DATA_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LED3_Pin|RST2_Pin|LDAC_Pin|DATA2_Pin
+                          |LE2_Pin|DATA_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : SHIFT_CLK_Pin */
-  GPIO_InitStruct.Pin = SHIFT_CLK_Pin;
+  /*Configure GPIO pins : SHIFT_CLK_Pin RST_Pin */
+  GPIO_InitStruct.Pin = SHIFT_CLK_Pin|RST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(SHIFT_CLK_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : RST_Pin */
-  GPIO_InitStruct.Pin = RST_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(RST_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : SHDN_Pin CS2_Pin Chip_Pin */
-  GPIO_InitStruct.Pin = SHDN_Pin|CS2_Pin|Chip_Pin;
+  /*Configure GPIO pins : SHDN_Pin LE_Pin SHIFT_CLK2_Pin Chip_Pin */
+  GPIO_InitStruct.Pin = SHDN_Pin|LE_Pin|SHIFT_CLK2_Pin|Chip_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LE_Pin */
-  GPIO_InitStruct.Pin = LE_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(LE_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : LED3_Pin LDAC_Pin */
-  GPIO_InitStruct.Pin = LED3_Pin|LDAC_Pin;
+  /*Configure GPIO pins : LED3_Pin RST2_Pin LDAC_Pin DATA2_Pin
+                           LE2_Pin DATA_Pin */
+  GPIO_InitStruct.Pin = LED3_Pin|RST2_Pin|LDAC_Pin|DATA2_Pin
+                          |LE2_Pin|DATA_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : RSII_Q1_EX_Pin */
-  GPIO_InitStruct.Pin = RSII_Q1_EX_Pin;
+  /*Configure GPIO pins : RSII_Q2_EX_Pin RSII_Q1_EX_Pin */
+  GPIO_InitStruct.Pin = RSII_Q2_EX_Pin|RSII_Q1_EX_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(RSII_Q1_EX_GPIO_Port, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : DATA_Pin */
-  GPIO_InitStruct.Pin = DATA_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(DATA_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 }
 

@@ -67,14 +67,22 @@ void Error_Handler(void);
 #define LE_GPIO_Port GPIOA
 #define LED3_Pin GPIO_PIN_0
 #define LED3_GPIO_Port GPIOB
+#define RST2_Pin GPIO_PIN_14
+#define RST2_GPIO_Port GPIOB
 #define LDAC_Pin GPIO_PIN_15
 #define LDAC_GPIO_Port GPIOB
-#define CS2_Pin GPIO_PIN_10
-#define CS2_GPIO_Port GPIOA
+#define SHIFT_CLK2_Pin GPIO_PIN_8
+#define SHIFT_CLK2_GPIO_Port GPIOA
+#define RSII_Q2_EX_Pin GPIO_PIN_11
+#define RSII_Q2_EX_GPIO_Port GPIOA
 #define RSII_Q1_EX_Pin GPIO_PIN_12
 #define RSII_Q1_EX_GPIO_Port GPIOA
 #define Chip_Pin GPIO_PIN_15
 #define Chip_GPIO_Port GPIOA
+#define DATA2_Pin GPIO_PIN_6
+#define DATA2_GPIO_Port GPIOB
+#define LE2_Pin GPIO_PIN_7
+#define LE2_GPIO_Port GPIOB
 #define DATA_Pin GPIO_PIN_9
 #define DATA_GPIO_Port GPIOB
 
