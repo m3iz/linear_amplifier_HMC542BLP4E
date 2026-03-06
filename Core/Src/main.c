@@ -224,6 +224,9 @@ typedef struct {
 	uint8_t value;
 } registerSetting_t;
 
+
+
+
 static const registerSetting_t preferredSettings[]=
 {
   {CC1201_IOCFG2,            0x06},
@@ -252,6 +255,7 @@ static const registerSetting_t preferredSettings[]=
   {CC1201_PKT_CFG2,          0x20},
   {CC1201_PKT_CFG1,          0x83},
   {CC1201_PKT_CFG0,          0x20},
+  {CC1201_PA_CFG1,           0x44},
   {CC1201_PKT_LEN,           0xFF},
   {CC1201_IF_MIX_CFG,        0x18},
   {CC1201_TOC_CFG,           0x03},
@@ -277,7 +281,6 @@ static const registerSetting_t preferredSettings[]=
   {CC1201_XOSC5,             0x0E},
   {CC1201_XOSC1,             0x03},
 };
-
 void halRfWriteReg(uint16_t regAddr, uint8_t value) {
 	CC1200_CS_LOW(); // Активируем чип, устанавливая CS в низкое состояние
 
@@ -413,8 +416,8 @@ int main(void)
 	HMC_Reset();
 	HMC2_Reset();
 
-	HMC_SetAttenuation(15.5f, 0b10101100); //0b10011100
-	HMC_SetAttenuation2(15.5f, 0b10101100);
+	HMC_SetAttenuation(15.5f, 0b10111100); //0b10011100
+	HMC_SetAttenuation2(15.5f, 0b11000100);
 	HAL_GPIO_WritePin(SHDN_GPIO_Port, SHDN_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(LDAC_GPIO_Port, LDAC_Pin, GPIO_PIN_RESET);
 	HAL_Delay(100);
@@ -444,26 +447,7 @@ int main(void)
 		uint8_t message[] = "Hello, RF World!";
 			transmitMessage(message, sizeof(message) - 1);
 	while (1) {
-		CC1200_CS_LOW();
-				uint8_t temp = 0x3B;
-				HAL_SPI_Transmit(&hspi1, &temp, 1, HAL_MAX_DELAY);
-				CC1200_CS_HIGH();
-				/*
-				 CC1200_CS_LOW();
-				 temp= CC1200_ENQUEUE_TX_FIFO | CC1200_BURST;
-				 uint8_t status;
-				 HAL_SPI_Transmit(&hspi1, &temp, 1, HAL_MAX_DELAY);
-				 temp=0x00;
-				 for (int i = 0; i < 100; i++)
-				 {
 
-				 HAL_SPI_TransmitReceive(&hspi1, &temp, &status, 1, HAL_MAX_DELAY);
-				 }
-				 CC1200_CS_HIGH();*/
-				CC1200_CS_LOW();
-				temp = 0x35;
-				HAL_SPI_Transmit(&hspi1, &temp, 1, HAL_MAX_DELAY);
-				CC1200_CS_HIGH();
 		// Переменная для хранения найденного уровня RSSI
 		int8_t found_rssi_level = 0;
 		int8_t found_rssi_level2 = 0;
@@ -482,17 +466,17 @@ int main(void)
 				found_rssi_level = dac_rssi_table[i].rssi_level;
 				rssi = found_rssi_level;
 				//HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
-				if (rssi == -5 && ary == 0) {
-					//HMC_SetAttenuation(15.5f, 0b01011100);
-					ary = 1;
+				if (rssi >= -10 && ary2 == 0) {
+					HMC_SetAttenuation2(15.5f, 0b01011100);
+					ary2 = 1;
 					HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
 					HAL_Delay(100);
-					MCP4922_Write(0, 200);
+					MCP4922_Write(0, 400);
 					HAL_Delay(100);
 					while (1) {
 						if (HAL_GPIO_ReadPin(RSII_Q1_EX_GPIO_Port,
 						RSII_Q1_EX_Pin) == GPIO_PIN_RESET) {
-							//HMC_SetAttenuation(15.5f, 0b10011100);
+							HMC_SetAttenuation2(15.5f, 0b11000100);
 							HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin,
 									GPIO_PIN_RESET);
 							ary2 = 0;
@@ -503,31 +487,31 @@ int main(void)
 				}
 			}
 			if (HAL_GPIO_ReadPin(RSII_Q2_EX_GPIO_Port, RSII_Q2_EX_Pin)
-					== GPIO_PIN_SET) {
-				// Если GPIO нога установлена в 1, запоминаем уровень RSSI
-				found_rssi_level2 = dac_rssi_table[i].rssi_level;
-				rssi2 = found_rssi_level2;
-				//HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
-				if (rssi2 == -5 && ary2 == 0) {
-					//HMC_SetAttenuation2(15.5f, 0b01011100);
-					ary2 = 1;
-					HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
-					HAL_Delay(100);
-					MCP4922_Write(1, 270);
-					HAL_Delay(100);
-					while (1) {
-						if (HAL_GPIO_ReadPin(RSII_Q2_EX_GPIO_Port,
-						RSII_Q2_EX_Pin) == GPIO_PIN_RESET) {
-							//HMC_SetAttenuation2(15.5f, 0b10011100);
-							HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin,
-									GPIO_PIN_RESET);
-							ary2 = 0;
-							break;
-						}
+								== GPIO_PIN_SET) {
+							// Если GPIO нога установлена в 1, запоминаем уровень RSSI
+							found_rssi_level = dac_rssi_table[i].rssi_level;
+							rssi = found_rssi_level;
+							//HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
+							if (rssi > -8 && ary == 0) {
+								HMC_SetAttenuation(15.5f, 0b01011100);
+								ary = 1;
+								HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
+								HAL_Delay(100);
+								MCP4922_Write(1, 1000);
+								HAL_Delay(100);
+								while (1) {
+									if (HAL_GPIO_ReadPin(RSII_Q2_EX_GPIO_Port,
+											RSII_Q2_EX_Pin) == GPIO_PIN_RESET) {
+										HMC_SetAttenuation(15.5f, 0b10111100);
+										HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin,
+												GPIO_PIN_RESET);
+										ary = 0;
+										break;
+									}
 
-					}
-				}
-			}
+								}
+							}
+						}
 		}
 		/*if (HAL_GPIO_ReadPin(RSII_Q1_EX_GPIO_Port, RSII_Q1_EX_Pin)
 		 == GPIO_PIN_SET) {

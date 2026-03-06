@@ -57,9 +57,40 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define SHIFT_CLK_Pin GPIO_PIN_13
+#define SHIFT_CLK_GPIO_Port GPIOC
+#define RST_Pin GPIO_PIN_14
+#define RST_GPIO_Port GPIOC
+#define SHDN_Pin GPIO_PIN_4
+#define SHDN_GPIO_Port GPIOA
+#define LE_Pin GPIO_PIN_7
+#define LE_GPIO_Port GPIOA
+#define LED3_Pin GPIO_PIN_1
+#define LED3_GPIO_Port GPIOB
+#define RST2_Pin GPIO_PIN_14
+#define RST2_GPIO_Port GPIOB
+#define LDAC_Pin GPIO_PIN_15
+#define LDAC_GPIO_Port GPIOB
+#define SHIFT_CLK2_Pin GPIO_PIN_8
+#define SHIFT_CLK2_GPIO_Port GPIOA
+#define NCS_Pin GPIO_PIN_10
+#define NCS_GPIO_Port GPIOA
+#define RSII_Q2_EX_Pin GPIO_PIN_11
+#define RSII_Q2_EX_GPIO_Port GPIOA
+#define RSII_Q1_EX_Pin GPIO_PIN_12
+#define RSII_Q1_EX_GPIO_Port GPIOA
+#define Chip_Pin GPIO_PIN_15
+#define Chip_GPIO_Port GPIOA
+#define DATA2_Pin GPIO_PIN_6
+#define DATA2_GPIO_Port GPIOB
+#define LE2_Pin GPIO_PIN_7
+#define LE2_GPIO_Port GPIOB
+#define RES_CC_Pin GPIO_PIN_8
+#define RES_CC_GPIO_Port GPIOB
+#define DATA_Pin GPIO_PIN_9
+#define DATA_GPIO_Port GPIOB
 
-/////
-// Регистры CC1201
+/* USER CODE BEGIN Private defines */
 #define CC1201_IOCFG2           0x0001
 #define CC1201_SYNC_CFG1        0x0008
 #define CC1201_SYNC_CFG0        0x0009
@@ -372,42 +403,6 @@ void Error_Handler(void);
 #define SINGLE_READ_BYTE 0x80
 #define BURST_READ_BYTE 0xC0
 #define SINGLE_WRITE_BYTE 0x2F
-////
-#define SHIFT_CLK_Pin GPIO_PIN_13
-#define SHIFT_CLK_GPIO_Port GPIOC
-#define RST_Pin GPIO_PIN_14
-#define RST_GPIO_Port GPIOC
-#define SHDN_Pin GPIO_PIN_4
-#define SHDN_GPIO_Port GPIOA
-#define LE_Pin GPIO_PIN_7
-#define LE_GPIO_Port GPIOA
-#define LED3_Pin GPIO_PIN_0
-#define LED3_GPIO_Port GPIOB
-#define RST2_Pin GPIO_PIN_14
-#define RST2_GPIO_Port GPIOB
-#define LDAC_Pin GPIO_PIN_15
-#define LDAC_GPIO_Port GPIOB
-#define SHIFT_CLK2_Pin GPIO_PIN_8
-#define SHIFT_CLK2_GPIO_Port GPIOA
-#define NCS_Pin GPIO_PIN_10
-#define NCS_GPIO_Port GPIOA
-#define RSII_Q2_EX_Pin GPIO_PIN_11
-#define RSII_Q2_EX_GPIO_Port GPIOA
-#define RSII_Q1_EX_Pin GPIO_PIN_12
-#define RSII_Q1_EX_GPIO_Port GPIOA
-#define Chip_Pin GPIO_PIN_15
-#define Chip_GPIO_Port GPIOA
-#define DATA2_Pin GPIO_PIN_6
-#define DATA2_GPIO_Port GPIOB
-#define LE2_Pin GPIO_PIN_7
-#define LE2_GPIO_Port GPIOB
-#define RES_CC_Pin GPIO_PIN_8
-#define RES_CC_GPIO_Port GPIOB
-#define DATA_Pin GPIO_PIN_9
-#define DATA_GPIO_Port GPIOB
-
-/* USER CODE BEGIN Private defines */
-
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
