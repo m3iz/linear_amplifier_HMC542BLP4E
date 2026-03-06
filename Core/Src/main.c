@@ -452,8 +452,8 @@ int main(void) {
 
 		            if (ary2 == 1) {
 
-		                HMC_SetAttenuation2(15.5f, 0b11000100);
-		                ary2 = 0;
+		               // HMC_SetAttenuation2(15.5f, 0b11000100);
+		                //ary2 = 0;
 
 		                if (ary == 0) {
 		                    HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
@@ -469,7 +469,7 @@ int main(void) {
 
 		                found_rssi_level2 = dac_rssi_table[i].rssi_level;
 
-		                if (found_rssi_level2 > -8) {
+		                if (found_rssi_level2 > -9) { //-8
 		                    ch2_ready = 1;
 		                    trigger_dac1 = dac_rssi_table[i].dac_value;
 		                }
@@ -480,8 +480,9 @@ int main(void) {
 		            if (ary == 1) {
 
 		                HMC_SetAttenuation(15.5f, 0b10111100);
+		                HMC_SetAttenuation2(15.5f, 0b11000100);
 		                ary = 0;
-
+		                ary2 = 0;
 		                if (ary2 == 0) {
 		                    HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
 		                }
@@ -502,8 +503,8 @@ int main(void) {
 
 		            HAL_Delay(100);
 
-		            MCP4922_Write(0, 400);
-		            MCP4922_Write(1, 1000);
+		            MCP4922_Write(0, 160); //160
+		            MCP4922_Write(1, 160);
 
 		            HAL_Delay(100);
 
