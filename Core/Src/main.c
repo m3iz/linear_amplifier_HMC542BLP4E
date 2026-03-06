@@ -446,86 +446,83 @@ int main(void)
 	//HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
 		uint8_t message[] = "Hello, RF World!";
 			transmitMessage(message, sizeof(message) - 1);
+			uint32_t trigger_dac0 = 0;
+			uint32_t trigger_dac1 = 0;
 	while (1) {
 
 		// Переменная для хранения найденного уровня RSSI
-		int8_t found_rssi_level = 0;
-		int8_t found_rssi_level2 = 0;
-		// Цикл по таблице значений ЦАП
-		for (uint8_t i = TABLE_SIZE - 1; i > 0; i--) {
-			// Установка текущего значения ЦАП
-			set_dac_value(dac_rssi_table[i].dac_value, 0);
-			set_dac_value(dac_rssi_table[i].dac_value, 1);
-			// Ожидание некоторого времени для стабилизации сигнала
-			HAL_Delay(10); // Можно настроить время задержки
+		  int8_t found_rssi_level = 0;
+		  int8_t found_rssi_level2 = 0;
 
-			// Проверка состояния GPIO ноги
-			if (HAL_GPIO_ReadPin(RSII_Q1_EX_GPIO_Port, RSII_Q1_EX_Pin)
-					== GPIO_PIN_SET) {
-				// Если GPIO нога установлена в 1, запоминаем уровень RSSI
-				found_rssi_level = dac_rssi_table[i].rssi_level;
-				rssi = found_rssi_level;
-				//HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
-				if (rssi >= -10 && ary2 == 0) {
-					HMC_SetAttenuation2(15.5f, 0b01011100);
-					ary2 = 1;
-					HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
-					HAL_Delay(100);
-					MCP4922_Write(0, 400);
-					HAL_Delay(100);
-					while (1) {
-						if (HAL_GPIO_ReadPin(RSII_Q1_EX_GPIO_Port,
-						RSII_Q1_EX_Pin) == GPIO_PIN_RESET) {
-							HMC_SetAttenuation2(15.5f, 0b11000100);
-							HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin,
-									GPIO_PIN_RESET);
-							ary2 = 0;
-							break;
-						}
+		  // Цикл по таблице значений ЦАП
+		  for (uint8_t i = TABLE_SIZE - 1; i > 0; i--) {
+		    // Установка текущего значения ЦАП в зависимости от состояния канала
+		    if (ary2 == 0) {
+		      set_dac_value(dac_rssi_table[i].dac_value, 0);
+		    } else {
+		      set_dac_value(trigger_dac0, 0);
+		    }
+		    if (ary == 0) {
+		      set_dac_value(dac_rssi_table[i].dac_value, 1);
+		    } else {
+		      set_dac_value(trigger_dac1, 1);
+		    }
 
-					}
-				}
-			}
-			if (HAL_GPIO_ReadPin(RSII_Q2_EX_GPIO_Port, RSII_Q2_EX_Pin)
-								== GPIO_PIN_SET) {
-							// Если GPIO нога установлена в 1, запоминаем уровень RSSI
-							found_rssi_level = dac_rssi_table[i].rssi_level;
-							rssi = found_rssi_level;
-							//HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
-							if (rssi > -8 && ary == 0) {
-								HMC_SetAttenuation(15.5f, 0b01011100);
-								ary = 1;
-								HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
-								HAL_Delay(100);
-								MCP4922_Write(1, 1000);
-								HAL_Delay(100);
-								while (1) {
-									if (HAL_GPIO_ReadPin(RSII_Q2_EX_GPIO_Port,
-											RSII_Q2_EX_Pin) == GPIO_PIN_RESET) {
-										HMC_SetAttenuation(15.5f, 0b10111100);
-										HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin,
-												GPIO_PIN_RESET);
-										ary = 0;
-										break;
-									}
+		    // Ожидание некоторого времени для стабилизации сигнала
+		    HAL_Delay(10); // Можно настроить время задержки
 
-								}
-							}
-						}
-		}
-		/*if (HAL_GPIO_ReadPin(RSII_Q1_EX_GPIO_Port, RSII_Q1_EX_Pin)
-		 == GPIO_PIN_SET) {
-		 HMC_SetAttenuation(15.5f, 0b01011100);
-		 HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
-		 } else {
-		 HMC_SetAttenuation(15.5f, 0b10011100);
-		 HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
-		 }
-		 */
-		//MCP4922_Write(0, 1028);  // Канал A, выдаёт примерно 3.0 В
-		//MCP4922_Write(1, 1028);  // Канал A, выдаёт примерно 3.0 В
-		//MCP4922_Send(controlA, dataA);
-		//HAL_Delay(100);
+		    // Проверка состояния GPIO ноги для первого канала
+		    if (HAL_GPIO_ReadPin(RSII_Q1_EX_GPIO_Port, RSII_Q1_EX_Pin) == GPIO_PIN_SET) {
+		      if (ary2 == 0) {
+		        // Если GPIO нога установлена в 1, запоминаем уровень RSSI
+		        found_rssi_level = dac_rssi_table[i].rssi_level;
+		        rssi = found_rssi_level;
+		        if (rssi >= -10 && ary2 == 0) {
+		          HMC_SetAttenuation2(15.5f, 0b01011100);
+		          ary2 = 1;
+		          HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
+		          HAL_Delay(100);
+		          MCP4922_Write(0, 400);
+		          HAL_Delay(100);
+		          trigger_dac0 = dac_rssi_table[i].dac_value;
+		        }
+		      }
+		    } else {
+		      if (ary2 == 1) {
+		        HMC_SetAttenuation2(15.5f, 0b11000100);
+		        ary2 = 0;
+		        if (ary == 0) {
+		          HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
+		        }
+		      }
+		    }
+
+		    // Проверка состояния GPIO ноги для второго канала
+		    if (HAL_GPIO_ReadPin(RSII_Q2_EX_GPIO_Port, RSII_Q2_EX_Pin) == GPIO_PIN_SET) {
+		      if (ary == 0) {
+		        // Если GPIO нога установлена в 1, запоминаем уровень RSSI
+		        found_rssi_level2 = dac_rssi_table[i].rssi_level;
+		        rssi = found_rssi_level2;
+		        if (rssi > -8 && ary == 0) {
+		          HMC_SetAttenuation(15.5f, 0b01011100);
+		          ary = 1;
+		          HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET); // Включаем LED
+		          HAL_Delay(100);
+		          MCP4922_Write(1, 1000);
+		          HAL_Delay(100);
+		          trigger_dac1 = dac_rssi_table[i].dac_value;
+		        }
+		      }
+		    } else {
+		      if (ary == 1) {
+		        HMC_SetAttenuation(15.5f, 0b10111100);
+		        ary = 0;
+		        if (ary2 == 0) {
+		          HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
+		        }
+		      }
+		    }
+		  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
