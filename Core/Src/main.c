@@ -76,7 +76,7 @@ typedef struct {
 DAC_RSSI dac_rssi_table[] = { { 0, -17 }, { 20, -16 }, { 50, -15 },
 		{ 100, -14 }, { 170, -13 }, { 270, -12 }, { 400, -11 }, { 550, -10 }, {
 				800, -9 }, // Предположим, что диапазон 1500-1600 представлен как 1500
-		{ 1200, -8 }, { 1700, -7 }, { 2400, -6 }, { 4095, -5 }, };
+		{ 1200, -8 }, { 1700, -7 }, { 2700, -6 }, { 4095, -5 }, };
 
 // Размер массива
 #define TABLE_SIZE (sizeof(dac_rssi_table) / sizeof(DAC_RSSI))
@@ -442,7 +442,7 @@ int main(void) {
 
 		                found_rssi_level = dac_rssi_table[i].rssi_level;
 
-		                if (found_rssi_level >= -10) {
+		                if (found_rssi_level >= -6) {
 		                    ch1_ready = 1;
 		                    trigger_dac0 = dac_rssi_table[i].dac_value;
 		                }
@@ -469,7 +469,7 @@ int main(void) {
 
 		                found_rssi_level2 = dac_rssi_table[i].rssi_level;
 
-		                if (found_rssi_level2 > -9) { //-8
+		                if (found_rssi_level2 >= -6) { //-8
 		                    ch2_ready = 1;
 		                    trigger_dac1 = dac_rssi_table[i].dac_value;
 		                }
@@ -491,7 +491,7 @@ int main(void) {
 
 		        /* -------- ВКЛЮЧЕНИЕ АРУ СРАЗУ НА ДВУХ -------- */
 
-		        if (ch1_ready && ch2_ready && ary == 0 && ary2 == 0) {
+		        if (ch1_ready || ch2_ready && ary == 0 && ary2 == 0) {
 
 		            HMC_SetAttenuation2(15.5f, 0b01011100);
 		            HMC_SetAttenuation(15.5f, 0b01011100);
@@ -503,8 +503,8 @@ int main(void) {
 
 		            HAL_Delay(100);
 
-		            MCP4922_Write(0, 160); //160
-		            MCP4922_Write(1, 160);
+		            MCP4922_Write(0, 0); //160
+		            MCP4922_Write(1, 0);
 
 		            HAL_Delay(100);
 
