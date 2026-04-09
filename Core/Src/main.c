@@ -287,7 +287,7 @@ void halRfWriteFifo(const uint8_t *data, uint8_t length) {
 void transmitMessage(const uint8_t *message, uint8_t length) {
 	// Переход в режим IDLE перед настройкой для отправки
 	halRfWriteReg(CC120X_SIDLE, CC120X_WRITE_SINGLE_BYTE);
-	//while (halRfReadReg(CC120X_MARCSTATE) != MARCSTATE_IDLE);
+	while (readRegisterEx(CC120X_MARCSTATE) != MARCSTATE_IDLE);
 
 	// Очистка TX FIFO перед загрузкой данных
 	halRfWriteReg(CC120X_SFTX, CC120X_WRITE_SINGLE_BYTE);
@@ -397,7 +397,7 @@ int main(void) {
 	HAL_GPIO_WritePin(RES_CC_GPIO_Port, RES_CC_Pin, 1);
 
 	halRfWriteReg(0x1B, 0x22);
-	uint8_t partNum = readRegister(0x1B);
+	uint8_t partNum = readRegisterEx(0x8f);
 	printf("Part Number: %d\n", partNum);
 
 	uint8_t version = readRegister(VERSION_REG);
