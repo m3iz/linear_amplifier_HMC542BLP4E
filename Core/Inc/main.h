@@ -67,6 +67,9 @@ void Error_Handler(void);
 #define LE_GPIO_Port GPIOA
 #define LED3_Pin GPIO_PIN_1
 #define LED3_GPIO_Port GPIOB
+#define IO3_Pin GPIO_PIN_13
+#define IO3_GPIO_Port GPIOB
+#define IO3_EXTI_IRQn EXTI15_10_IRQn
 #define RST2_Pin GPIO_PIN_14
 #define RST2_GPIO_Port GPIOB
 #define LDAC_Pin GPIO_PIN_15
@@ -146,10 +149,20 @@ void Error_Handler(void);
 #define CC1200_CS_LOW()  HAL_GPIO_WritePin(NCS_GPIO_Port, NCS_Pin, GPIO_PIN_RESET)
 #define CC1200_CS_HIGH() HAL_GPIO_WritePin(NCS_GPIO_Port, NCS_Pin, GPIO_PIN_SET)
 // Команды для управления радио
-#define CC120X_SIDLE        0x36  // Выйти в режим IDLE
-#define CC120X_SFTX         0x3B  // Очистить TX FIFO
-#define CC120X_STX          0x35  // Перейти в режим передачи
-#define CC120X_SFRX         0x3A  // Очистить RX FIFO
+#define CC120X_SRES                        0x30
+#define CC120X_SFSTXON                     0x31
+#define CC120X_SXOFF                       0x32
+#define CC120X_SCAL                        0x33
+#define CC120X_SRX                         0x34
+#define CC120X_STX                         0x35
+#define CC120X_SIDLE                       0x36
+#define CC120X_SAFC                        0x37
+#define CC120X_SWOR                        0x38
+#define CC120X_SPWD                        0x39
+#define CC120X_SFRX                        0x3A
+#define CC120X_SFTX                        0x3B
+#define CC120X_SWORRST                     0x3C
+#define CC120X_SNOP                        0x3D
 
 // Адреса регистров конфигурации (примеры, проверьте документацию для вашего устройства)
 #define CC120X_IOCFG2       0x0002  // Конфигурация GPIO2 (например, для индикации состояния TX)
@@ -196,6 +209,48 @@ void Error_Handler(void);
 #define CC1200_PREAMBLE_CFG1               0x000D
 #define CC1200_PREAMBLE_CFG0               0x000E
 #define CC1200_IQIC                        0x000F
+#define CC1200_CHAN_BW                     0x0010
+#define CC1200_MDMCFG1                     0x0011
+#define CC1200_MDMCFG0                     0x0012
+#define CC1200_SYMBOL_RATE2                0x0013
+#define CC1200_SYMBOL_RATE1                0x0014
+#define CC1200_SYMBOL_RATE0                0x0015
+#define CC1200_AGC_REF                     0x0016
+#define CC1200_AGC_CS_THR                  0x0017
+#define CC1200_AGC_CFG1                    0x001B
+#define CC1200_AGC_CFG0                    0x001C
+#define CC1200_FIFO_CFG                    0x001D
+#define CC1200_FS_CFG                      0x0020
+#define CC1200_PKT_CFG2                    0x0026
+#define CC1200_PKT_CFG1                    0x0027
+#define CC1200_PKT_CFG0                    0x0028
+#define CC1200_RFEND_CFG1                  0x0029
+#define CC1200_PKT_LEN                     0x002E
+#define CC1200_IF_MIX_CFG                  0x2F00
+#define CC1200_TOC_CFG                     0x2F02
+#define CC1200_MDMCFG2                     0x2F05
+#define CC1200_FREQ2                       0x2F0C
+#define CC1200_FREQ1                       0x2F0D
+#define CC1200_FREQ0                       0x2F0E
+#define CC1200_IF_ADC1                     0x2F10
+#define CC1200_IF_ADC0                     0x2F11
+#define CC1200_FS_DIG1                     0x2F12
+#define CC1200_FS_DIG0                     0x2F13
+#define CC1200_FS_CAL1                     0x2F16
+#define CC1200_FS_CAL0                     0x2F17
+#define CC1200_FS_DIVTWO                   0x2F19
+#define CC1200_FS_DSM0                     0x2F1B
+#define CC1200_FS_DVC1                     0x2F1C
+#define CC1200_FS_DVC0                     0x2F1D
+#define CC1200_FS_PFD                      0x2F1F
+#define CC1200_FS_PRE                      0x2F20
+#define CC1200_FS_REG_DIV_CML              0x2F21
+#define CC1200_FS_SPARE                    0x2F22
+#define CC1200_FS_VCO0                     0x2F27
+#define CC1200_IFAMP                       0x2F2F
+#define CC1200_XOSC5                       0x2F32
+#define CC1200_XOSC1                       0x2F36
+#define CC1200_MARCSTATE                   0x2F73
 #define CC1200_CHAN_BW                     0x0010
 #define CC1200_MDMCFG1                     0x0011
 #define CC1200_MDMCFG0                     0x0012
