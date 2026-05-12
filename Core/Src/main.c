@@ -24,7 +24,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-// Определения пинов
+#include <CC1200_rx_reg_values_my.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "CC1200_commands.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -56,10 +59,21 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-// Микрозадержка (можно изменить на более точную позже)
-#define CC1201_PA_CFG1 0x2B
-#define CC1201_PA_CFG0	0x2C
-#define CC1201_FS_DSM1 0x2F1A
+
+#define CC_CS_ON()  HAL_GPIO_WritePin(CC_CS_GPIO_Port, CC_CS_Pin, GPIO_PIN_RESET) //включение
+#define CC_CS_OFF() HAL_GPIO_WritePin(CC_CS_GPIO_Port, CC_CS_Pin, GPIO_PIN_SET) //выключение
+
+#define MCP_CS_ON()  HAL_GPIO_WritePin(MCP_CS_GPIO_Port, MCP_CS_Pin, GPIO_PIN_RESET) //включение
+#define MCP_CS_OFF() HAL_GPIO_WritePin(MCP_CS_GPIO_Port, MCP_CS_Pin, GPIO_PIN_SET) //выключение
+
+uint8_t spiByte; //for SPI work
+uint8_t spiStatusByte; //for SPI work
+const uint8_t dummyByte=0xFF; //for SPI read
+uint8_t cc_received_byte;
+
+uint8_t received_bytes_arr[10000]={0};
+int received_bytes_arr_ptr=0;
+
 
 int ary = 0;
 int rssi = 0;
@@ -215,158 +229,126 @@ void set_dac_value(uint16_t value, int num) {
 		MCP4922_Write(1, value);
 }
 
-/////CC1200
+///CC1200
 
-typedef struct {
-	uint16_t regAddr;
-	uint8_t value;
-} registerSetting_t;
+void CC1200_rx_write_reg(uint16_t regAddr, uint8_t value) {
 
-static const registerSetting_t preferredSettings[] = { { CC1201_IOCFG2, 0x06 },
-		{ CC1201_SYNC1, 0x6F }, { CC1201_SYNC0, 0x4E },
-		{ CC1201_SYNC_CFG1, 0xE8 }, { CC1201_SYNC_CFG0, 0x13 }, {
-				CC1201_DEVIATION_M, 0x99 }, { CC1201_MODCFG_DEV_E, 0x05 }, {
-				CC1201_DCFILT_CFG, 0x26 }, { CC1201_PREAMBLE_CFG1, 0x15 }, {
-				CC1201_PREAMBLE_CFG0, 0x8A }, { CC1201_IQIC, 0x00 }, {
-				CC1201_CHAN_BW, 0x02 }, { CC1201_MDMCFG1, 0x42 }, {
-				CC1201_MDMCFG0, 0x05 }, { CC1201_SYMBOL_RATE2, 0xC9 }, {
-				CC1201_SYMBOL_RATE1, 0x99 }, { CC1201_SYMBOL_RATE0, 0x99 }, {
-				CC1201_AGC_REF, 0x2F }, { CC1201_AGC_CS_THR, 0xEC }, {
-				CC1201_AGC_CFG1, 0x16 }, { CC1201_AGC_CFG0, 0x84 }, {
-				CC1201_FIFO_CFG, 0x00 }, { CC1201_FS_CFG, 0x1B }, {
-				CC1201_PKT_CFG2, 0x20 }, { CC1201_PKT_CFG1, 0x83 }, {
-				CC1201_PKT_CFG0, 0x20 }, { CC1201_PA_CFG1, 0x44 }, {
-				CC1201_PKT_LEN, 0xFF }, { CC1201_IF_MIX_CFG, 0x18 }, {
-				CC1201_TOC_CFG, 0x03 }, { CC1201_MDMCFG2, 0x00 }, {
-				CC1201_FREQ2, 0x5B }, { CC1201_FREQ1, 0x80 }, { CC1201_IF_ADC1,
-				0xEE }, { CC1201_IF_ADC0, 0x10 }, { CC1201_FS_DIG1, 0x04 }, {
-				CC1201_FS_DIG0, 0x50 }, { CC1201_FS_CAL1, 0x40 }, {
-				CC1201_FS_CAL0, 0x0E }, { CC1201_FS_DIVTWO, 0x03 }, {
-				CC1201_FS_DSM0, 0x33 }, { CC1201_FS_DVC1, 0xF7 }, {
-				CC1201_FS_DVC0, 0x0F }, { CC1201_FS_PFD, 0x00 }, {
-				CC1201_FS_PRE, 0x6E }, { CC1201_FS_REG_DIV_CML, 0x1C }, {
-				CC1201_FS_SPARE, 0xAC }, { CC1201_FS_VCO0, 0xB5 }, {
-				CC1201_IFAMP, 0x0D }, { CC1201_XOSC5, 0x0E }, { CC1201_XOSC1,
-				0x03 }, };
-void halRfWriteReg(uint16_t regAddr, uint8_t value) {
-	CC1200_CS_LOW(); // Активируем чип, устанавливая CS в низкое состояние
+	CC_CS_ON();
 
-	uint8_t tempExt = (uint8_t) (regAddr >> 8);
-	uint8_t tempAddr = (uint8_t) (regAddr & 0x00FF);
-	uint8_t statusByte;
+	uint8_t addr_h = (uint8_t)(regAddr >> 8);
+	uint8_t addr_l = (uint8_t)(regAddr & 0x00FF);
 
-	if (tempExt) {
-		uint8_t command = CC1200_WRITE | CC1200_EXT_ADDR;
-		HAL_SPI_TransmitReceive(&hspi1, &command, &statusByte, 1,
-		HAL_MAX_DELAY);
-		HAL_SPI_Transmit(&hspi1, &tempAddr, 1, HAL_MAX_DELAY);
-	} else {
-		tempAddr = CC1200_WRITE | tempAddr;
-		HAL_SPI_TransmitReceive(&hspi1, &tempAddr, &statusByte, 1,
-		HAL_MAX_DELAY);
+	if (addr_h) //если 2-байтный адрес
+	{
+		uint8_t command = CC1200_WRITE | addr_h;
+		HAL_SPI_TransmitReceive(&hspi1, &command, &spiByte, 1, HAL_MAX_DELAY);
+		HAL_SPI_TransmitReceive(&hspi1, &addr_l, &spiByte, 1, HAL_MAX_DELAY);
+	}
+	else //если 1-байтный адрес
+	{
+		uint8_t command = CC1200_WRITE | addr_l;
+		HAL_SPI_TransmitReceive(&hspi1, &command, &spiByte, 1, HAL_MAX_DELAY);
+	}
+	HAL_SPI_Transmit(&hspi1, &value, 1, HAL_MAX_DELAY);//значение регистра
+
+	CC_CS_OFF();
+}
+
+uint8_t CC1200_rx_read_reg(uint16_t regAddr) {
+
+	CC_CS_ON();
+
+	uint8_t addr_h = (uint8_t)(regAddr >> 8);
+	uint8_t addr_l = (uint8_t)(regAddr & 0x00FF);
+
+	if (addr_h) //если 2-байтный адрес
+	{
+		uint8_t command = CC1200_READ | addr_h;
+		HAL_SPI_TransmitReceive(&hspi1, &command, &spiByte, 1, HAL_MAX_DELAY);
+		HAL_SPI_TransmitReceive(&hspi1, &addr_l, &spiByte, 1, HAL_MAX_DELAY);
+	}
+	else //если 1-байтный адрес
+	{
+		uint8_t command = CC1200_WRITE | addr_l;
+		HAL_SPI_TransmitReceive(&hspi1, &command, &spiByte, 1, HAL_MAX_DELAY);
+	}
+	HAL_SPI_TransmitReceive(&hspi1, (uint8_t*)&dummyByte, &spiByte, 1, HAL_MAX_DELAY);//send dummy byte for read register
+
+	CC_CS_OFF();
+
+	return spiByte;//значение регистра
+}
+
+void CC1200_rx_send_command(uint8_t value) {
+
+	CC_CS_ON();
+
+	HAL_SPI_TransmitReceive(&hspi1, &value, &spiStatusByte,1, HAL_MAX_DELAY); //команда //устанавливает StatusByte
+
+	CC_CS_OFF();
+}
+
+
+uint8_t get_cc_state(){
+	CC1200_rx_send_command(CC1200_SNOP);
+	return ( spiStatusByte & CC1200_STATUS_BYTE_STATE_MASK ) >> CC1200_STATUS_BYTE_STATE_SHIFT;
+}
+
+
+void  CC1200_rx_init(){
+
+	CC_CS_OFF();
+	HAL_GPIO_WritePin(RES_CC_GPIO_Port, RES_CC_Pin, 0);
+	HAL_Delay(100);
+	HAL_GPIO_WritePin(RES_CC_GPIO_Port, RES_CC_Pin, 1);
+
+	CC_CS_ON(); //включение приёма по SPI
+	HAL_Delay(50);
+
+	for (int i = 0; i < sizeof(preferredSettings) / sizeof(registerSetting_t); ++i) {
+		CC1200_rx_write_reg(preferredSettings[i].regAddr, preferredSettings[i].value);
 	}
 
-	HAL_SPI_Transmit(&hspi1, &value, 1, HAL_MAX_DELAY);
-
-	CC1200_CS_HIGH();
+	CC1200_rx_send_command(CC1200_SIDLE);
+	CC1200_rx_send_command(CC1200_SFRX);
+	CC1200_rx_send_command(CC1200_SRX);
+	HAL_Delay(50);
 }
 
-void CC1200_init() {
-	for (int i = 0; i < sizeof(preferredSettings) / sizeof(registerSetting_t);
-			++i) {
-		halRfWriteReg(preferredSettings[i].regAddr, preferredSettings[i].value);
-	}
-}
-
-void halRfWriteFifo(const uint8_t *data, uint8_t length) {
-	for (uint8_t i = 0; i < length; i++) {
-		halRfWriteReg(CC120X_TXFIFO, 1);
-	}
-}
-
-void transmitMessage(const uint8_t *message, uint8_t length) {
-	// Переход в режим IDLE перед настройкой для отправки
-	halRfWriteReg(CC120X_SIDLE, CC120X_WRITE_SINGLE_BYTE);
-	while (readRegisterEx(CC120X_MARCSTATE) != MARCSTATE_IDLE);
-
-	// Очистка TX FIFO перед загрузкой данных
-	halRfWriteReg(CC120X_SFTX, CC120X_WRITE_SINGLE_BYTE);
-
-	// Запись сообщения в TX FIFO
-	halRfWriteFifo(message, length);
-
-	// Начало передачи
-	halRfWriteReg(CC120X_STX, CC120X_WRITE_SINGLE_BYTE);
-
-	// Ожидание завершения передачи может потребовать дополнительной логики,
-	// в зависимости от настройки прерываний или проверки статусных регистров.
-}
-
-uint8_t readRegisterEx(const uint8_t regAddr) {
-	uint8_t readCommand = 0x80 | CC1200_EXT_ADDR;
-	uint8_t statusByte = 0;
-	uint8_t regValue = 0;
-
-	CC1200_CS_LOW();
-
-	HAL_SPI_TransmitReceive(&hspi1, &readCommand, &statusByte, 1,
-	HAL_MAX_DELAY);
-	HAL_SPI_TransmitReceive(&hspi1, &regAddr, &regValue, 1, HAL_MAX_DELAY);
-	HAL_SPI_Receive(&hspi1, &regValue, 1, HAL_MAX_DELAY);
-
-	CC1200_CS_HIGH();
-
-	return regValue;
-}
-uint8_t readRegister(const uint8_t regAddr) {
-	uint8_t readCommand = regAddr | 0x80 | 0x00;
-	uint8_t statusByte = 0;
-	uint8_t regValue = 0;
-
-	CC1200_CS_LOW();
-
-	HAL_SPI_TransmitReceive(&hspi1, &readCommand, &statusByte, 1,
-	HAL_MAX_DELAY);
-	//HAL_SPI_TransmitReceive(&hspi1, (uint8_t[]){0xFF}, &regValue, 1, HAL_MAX_DELAY);
-	HAL_SPI_Receive(&hspi1, &regValue, 1, HAL_MAX_DELAY);
-
-	CC1200_CS_HIGH();
-
-	return regValue;
-}
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
-int main(void) {
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
 
-	/* USER CODE BEGIN 1 */
+  /* USER CODE BEGIN 1 */
 
-	/* USER CODE END 1 */
+  /* USER CODE END 1 */
 
-	/* MCU Configuration--------------------------------------------------------*/
+  /* MCU Configuration--------------------------------------------------------*/
 
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
-	/* USER CODE BEGIN Init */
+  /* USER CODE BEGIN Init */
 
-	/* USER CODE END Init */
+  /* USER CODE END Init */
 
-	/* Configure the system clock */
-	SystemClock_Config();
+  /* Configure the system clock */
+  SystemClock_Config();
 
-	/* USER CODE BEGIN SysInit */
+  /* USER CODE BEGIN SysInit */
 
-	/* USER CODE END SysInit */
+  /* USER CODE END SysInit */
 
-	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_TIM2_Init();
-	MX_SPI1_Init();
-	/* USER CODE BEGIN 2 */
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_TIM2_Init();
+  MX_SPI1_Init();
+  /* USER CODE BEGIN 2 */
 	// Инициализация начального состояния пинов
 	HAL_GPIO_WritePin(LE_GPIO_Port, LE_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(SHIFT_CLK_GPIO_Port, SHIFT_CLK_Pin, GPIO_PIN_RESET);
@@ -391,29 +373,79 @@ int main(void) {
 	HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
 	//HAL_GPIO_WritePin(CC_RESET_GPIO_Port, CC_RESET_Pin, GPIO_PIN_RESET);
 
-	CC1200_CS_HIGH();
-	HAL_GPIO_WritePin(RES_CC_GPIO_Port, RES_CC_Pin, 0);
-	HAL_Delay(100);
-	HAL_GPIO_WritePin(RES_CC_GPIO_Port, RES_CC_Pin, 1);
 
-	halRfWriteReg(0x1B, 0x22);
-	uint8_t partNum = readRegisterEx(0x8f);
-	printf("Part Number: %d\n", partNum);
-
-	uint8_t version = readRegister(VERSION_REG);
-	printf("Version: %d\n", version);
-
-	CC1200_init();
+	//CC1200_init();
+	CC1200_rx_init();
 	//HMC_SetAttenuation(15.5f, 0b01011100);
-	/* USER CODE END 2 */
+  /* USER CODE END 2 */
 
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
 	//HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
-	uint8_t message[] = "Hello, RF World!";
-	transmitMessage(message, sizeof(message) - 1);
+
 	uint32_t trigger_dac0 = 0;
 	uint32_t trigger_dac1 = 0;
+
+	while (1)
+		{
+			//это временный вариант - мигает светодиодом, если есть байты в буфере FIFO
+			//HAL_Delay(1);
+			const int toggle_led_freq_divider=10;
+			static int toggle_led_counter=0;
+
+			uint8_t cc_state=get_cc_state();
+			switch(cc_state)
+			{
+			case 0b001: //rx mode
+				int num_of_bytes = CC1200_rx_read_reg ( CC1200_NUM_RXBYTES );
+				if ( num_of_bytes > 0)
+				{
+					cc_received_byte=CC1200_rx_read_reg(CC1200_FIFO);
+
+	//				received_bytes_arr[received_bytes_arr_ptr]=cc_received_byte;	//использовать только для отладки!!!
+	//				received_bytes_arr_ptr++; 										//использовать только для отладки!!!
+	//				if(received_bytes_arr_ptr>500){									//использовать только для отладки!!!
+	//					received_bytes_arr_ptr=0;									//использовать только для отладки!!!
+	//				}																//использовать только для отладки!!!
+
+					toggle_led_counter++;
+					if(toggle_led_counter>toggle_led_freq_divider)
+					{
+						HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
+						toggle_led_counter=0;
+					}
+				}else
+				{
+					HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
+				}
+				break;
+
+			case 0b000: //idle
+				CC1200_rx_send_command(CC1200_SRX);
+				break;
+
+			case 0b110: //rx fifo error
+				CC1200_rx_send_command(CC1200_SFRX);
+				CC1200_rx_send_command(CC1200_SRX);
+				break;
+
+			case 0b111: //tx fifo error
+				CC1200_rx_send_command(CC1200_SFTX);
+				CC1200_rx_send_command(CC1200_SRX);
+				break;
+			}
+
+	    /* USER CODE END WHILE */
+
+	    /* USER CODE BEGIN 3 */
+		}
+
+
+
+
+
+
+
 	while (1) {
 
 		int8_t found_rssi_level = 0;
@@ -512,46 +544,49 @@ int main(void) {
 		        }
 		    }
 
-		/* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-		/* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
 	}
-	/* USER CODE END 3 */
+  /* USER CODE END 3 */
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
-void SystemClock_Config(void) {
-	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
-	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
 
-	/** Initializes the RCC Oscillators according to the specified parameters
-	 * in the RCC_OscInitTypeDef structure.
-	 */
-	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-	RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL12;
-	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
-		Error_Handler();
-	}
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL12;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
-	/** Initializes the CPU, AHB and APB buses clocks
-	 */
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
-			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK) {
-		Error_Handler();
-	}
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
 /* USER CODE BEGIN 4 */
@@ -559,16 +594,17 @@ void SystemClock_Config(void) {
 /* USER CODE END 4 */
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
-void Error_Handler(void) {
-	/* USER CODE BEGIN Error_Handler_Debug */
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
 	__disable_irq();
 	while (1) {
 	}
-	/* USER CODE END Error_Handler_Debug */
+  /* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT

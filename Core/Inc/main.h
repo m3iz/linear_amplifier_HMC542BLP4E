@@ -73,8 +73,8 @@ void Error_Handler(void);
 #define LDAC_GPIO_Port GPIOB
 #define SHIFT_CLK2_Pin GPIO_PIN_8
 #define SHIFT_CLK2_GPIO_Port GPIOA
-#define NCS_Pin GPIO_PIN_10
-#define NCS_GPIO_Port GPIOA
+#define CC_CS_Pin GPIO_PIN_10
+#define CC_CS_GPIO_Port GPIOA
 #define RSII_Q2_EX_Pin GPIO_PIN_11
 #define RSII_Q2_EX_GPIO_Port GPIOA
 #define RSII_Q1_EX_Pin GPIO_PIN_12
