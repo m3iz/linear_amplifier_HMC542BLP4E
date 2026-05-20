@@ -570,11 +570,18 @@ int main(void)
 				    					};
 				    uint16_t amp_word = pack_amp_settings(&my_amp);
 				    uint8_t simple_packet[3];
-				    simple_packet[0] = 2;        // длина данных
-				    simple_packet[1] = amp_word & 0xFF;
-				    simple_packet[2] = (amp_word >> 8) & 0xFF;
+				    simple_packet[0] = 1;        // длина данных
+				    simple_packet[1] = 2;
+				    simple_packet[2] = 3;
+				    simple_packet[3] = 4;
+					simple_packet[4] = 5;
+					simple_packet[5] = 6;
+					simple_packet[6] = 7;
+					simple_packet[7] = 8;
+					simple_packet[8] = 9;
+					simple_packet[9] = 2;
 				    CC1200_tx_init();
-				    CC1200_send_packet(simple_packet, 3);
+				    CC1200_send_packet(simple_packet, 10);
 				    // Мигнуть светодиодом
 				    HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
 				    // Очистить FIFO после чтения (важно!)
