@@ -1,6 +1,6 @@
 #ifndef CC1200_REGISTERS_H
 #define CC1200_REGISTERS_H
-
+#define PCK_SET_PARAMS   0x03
 #define SMARTRF_RADIO_CC1200
 #define CC1200_IOCFG3             0x0000
 #define CC1200_IOCFG2             0x0001

@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "CC1200_commands.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -42,7 +43,13 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+const uint8_t scrambler_tbl[] = {
+    0x00, 0xa5, 0xd2, 0x69, 0xb4, 0xda, 0xed, 0x76, 0xbb, 0x5d, 0xae, 0xd7, 0x6b, 0xb5, 0x5a, 0xad,
+    0x56, 0xab, 0xd5, 0x6a, 0x35, 0x1a, 0x8d, 0x46, 0x23, 0x11, 0x88, 0x44, 0x22, 0x91, 0xc8, 0x64,
+    0x32, 0x19, 0x0c, 0x86, 0x43, 0x21, 0x10, 0x08, 0x04, 0x02, 0x81, 0x40, 0xa0, 0xd0, 0x68, 0x34,
+    0x9a, 0xcd, 0x66, 0x33, 0x99, 0x4c, 0xa6, 0x53, 0xa9, 0xd4, 0xea, 0x75, 0x3a, 0x9d, 0xce, 0xe7,
+    0xf3, 0xf9, 0x7c, 0x3e
+};
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -60,11 +67,11 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-#define CC_CS_ON()  HAL_GPIO_WritePin(CC_CS_GPIO_Port, CC_CS_Pin, GPIO_PIN_RESET) //включение
-#define CC_CS_OFF() HAL_GPIO_WritePin(CC_CS_GPIO_Port, CC_CS_Pin, GPIO_PIN_SET) //выключение
+#define CC_CS_ON()  HAL_GPIO_WritePin(CC_CS_GPIO_Port, CC_CS_Pin, GPIO_PIN_RESET)
+#define CC_CS_OFF() HAL_GPIO_WritePin(CC_CS_GPIO_Port, CC_CS_Pin, GPIO_PIN_SET)
 
-#define MCP_CS_ON()  HAL_GPIO_WritePin(MCP_CS_GPIO_Port, MCP_CS_Pin, GPIO_PIN_RESET) //включение
-#define MCP_CS_OFF() HAL_GPIO_WritePin(MCP_CS_GPIO_Port, MCP_CS_Pin, GPIO_PIN_SET) //выключение
+#define MCP_CS_ON()  HAL_GPIO_WritePin(MCP_CS_GPIO_Port, MCP_CS_Pin, GPIO_PIN_RESET)
+#define MCP_CS_OFF() HAL_GPIO_WritePin(MCP_CS_GPIO_Port, MCP_CS_Pin, GPIO_PIN_SET)
 
 uint8_t spiByte; //for SPI work
 uint8_t spiStatusByte; //for SPI work
@@ -82,15 +89,26 @@ int ary2 = 0;
 int rssi2 = 0;
 
 typedef struct {
-	uint16_t dac_value;   // Значение ЦАП
-	int8_t rssi_level;    // Уровень RSSI
+	uint16_t dac_value;
+	int8_t rssi_level;
 } DAC_RSSI;
 
-// Массив структур с данными из таблицы
+
 DAC_RSSI dac_rssi_table[] = { { 0, -17 }, { 20, -16 }, { 50, -15 },
 		{ 100, -14 }, { 170, -13 }, { 270, -12 }, { 400, -11 }, { 550, -10 }, {
-				800, -9 }, // Предположим, что диапазон 1500-1600 представлен как 1500
+				800, -9 },
 		{ 1200, -8 }, { 1700, -7 }, { 2200, -6 }, { 4095, -5 }, };
+
+struct amp_settings {
+    unsigned gain       :3;
+    unsigned bias1      :2;
+    unsigned bias2      :2;
+    unsigned vgain      :1;
+    unsigned vbias      :3;
+    unsigned preamble   :2;
+    unsigned video_ena  :1;
+    unsigned diag_ena   :1;
+};
 
 // Размер массива
 #define TABLE_SIZE (sizeof(dac_rssi_table) / sizeof(DAC_RSSI))
@@ -294,6 +312,41 @@ uint8_t get_cc_state(){
 	return ( spiStatusByte & CC1200_STATUS_BYTE_STATE_MASK ) >> CC1200_STATUS_BYTE_STATE_SHIFT;
 }
 
+void CC1200_tx_init(void) {
+    CC_CS_OFF();
+    HAL_GPIO_WritePin(RES_CC_GPIO_Port, RES_CC_Pin, 0);
+    HAL_Delay(100);
+    HAL_GPIO_WritePin(RES_CC_GPIO_Port, RES_CC_Pin, 1);
+    CC_CS_ON();
+    HAL_Delay(50);
+    for (int i = 0; i < sizeof(txSettings)/sizeof(txSettings[0]); i++) {
+        CC1200_rx_write_reg(txSettings[i].regAddr, txSettings[i].value);
+    }
+    CC1200_rx_send_command(CC1200_SIDLE);
+    CC1200_rx_send_command(CC1200_SFTX);
+    CC_CS_OFF();
+}
+
+void CC1200_send_packet(const uint8_t *data, uint8_t len) {
+    CC1200_rx_send_command(CC1200_SIDLE);
+    CC1200_rx_send_command(CC1200_SFTX);
+    // Burst запись в FIFO
+    CC_CS_ON();
+    uint8_t burstCmd = CC1200_WRITE | CC1200_BURST | 0x3F; // 0x7F
+    HAL_SPI_Transmit(&hspi1, &burstCmd, 1, HAL_MAX_DELAY);
+    HAL_SPI_Transmit(&hspi1, &len, 1, HAL_MAX_DELAY);
+    HAL_SPI_Transmit(&hspi1, (uint8_t*)data, len, HAL_MAX_DELAY);
+    CC_CS_OFF();
+    CC1200_rx_send_command(CC1200_STX);
+    // Ждём завершения (состояние IDLE)
+    uint32_t timeout = 5000;
+    while (timeout--) {
+        uint8_t state = get_cc_state();
+        if (state == 0b000) break;
+        HAL_Delay(1);
+    }
+    if (timeout == 0) CC1200_rx_send_command(CC1200_SIDLE);
+}
 
 void  CC1200_rx_init(){
 
@@ -315,6 +368,100 @@ void  CC1200_rx_init(){
 	HAL_Delay(50);
 }
 
+uint16_t crc16_modbus(const uint8_t *data, uint8_t len) {
+    uint16_t crc = 0xFFFF;
+    for (uint8_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (uint8_t j = 0; j < 8; j++) {
+            if (crc & 0x0001) crc = (crc >> 1) ^ 0xA001;
+            else crc >>= 1;
+        }
+    }
+    return crc;
+}
+
+uint8_t diag_mk_len(uint8_t n) {
+    // n – количество байт в payload (без заголовка длины)
+    if (n % 4 || n > 64) return 0;
+    n >>= 2;
+    n--;
+    return ((~n & 15) << 4) | n;
+}
+
+uint16_t diag_build_packet(uint8_t *buf, uint16_t addr, uint8_t req, uint8_t opt,
+                           const uint8_t *data, uint8_t data_len) {
+    uint8_t payload_len = 4 + data_len; // addr(2) + req(1) + opt(1) + data
+    uint8_t enc_len = diag_mk_len(payload_len);
+    if (!enc_len) return 0;
+
+    buf[0] = enc_len;
+    buf[1] = addr >> 8;
+    buf[2] = addr & 0xFF;
+    buf[3] = req;
+    buf[4] = opt;
+    if (data_len && data) {
+        memcpy(&buf[5], data, data_len);
+    }
+
+    uint16_t crc = crc16_modbus(buf, payload_len + 1);
+    uint8_t *p = buf + payload_len + 1;
+    *p++ = crc & 0xFF;
+    *p++ = crc >> 8;
+
+    *p++ = 0xAA;
+    *p++ = 0xAA;
+    *p++ = 0xAA;
+
+    uint8_t total_len = payload_len + 1 + 2 + 3; // enc_len + addr+req+opt+data + crc + 3*AA
+
+    for (uint8_t i = 0; i < total_len - 3; i++) {
+        buf[i] ^= scrambler_tbl[i % sizeof(scrambler_tbl)];
+    }
+    return total_len;
+}
+
+uint16_t pack_amp_settings(struct amp_settings *a) {
+    return ( (a->gain & 0x07) << 13 ) |
+           ( (a->bias1 & 0x03) << 11 ) |
+           ( (a->bias2 & 0x03) << 9 ) |
+           ( (a->vgain & 0x01) << 8 ) |
+           ( (a->vbias & 0x07) << 5 ) |
+           ( (a->preamble & 0x03) << 3 ) |
+           ( (a->video_ena & 0x01) << 2 ) |
+           ( (a->diag_ena & 0x01) << 1 );
+}
+
+void send_amp_info(void) {
+
+    struct amp_settings amp = {
+        .gain      = 3,
+        .bias1     = 2,
+        .bias2     = 2,
+        .vgain     = 1,
+        .vbias     = 5,
+        .preamble  = 0,
+        .video_ena = 1,
+        .diag_ena  = 1
+    };
+    uint8_t data[2];
+    memcpy(data, &amp, sizeof(amp));
+
+    uint8_t txbuf[128];
+    uint16_t pkt_len = diag_build_packet(txbuf, 0x0003, 0x03, 0x00, data, sizeof(amp));
+
+
+    CC1200_send_packet(txbuf, pkt_len);
+}
+
+void CC1200_rx_read_fifo_burst(uint8_t *buffer, uint8_t len) {
+    CC_CS_ON();
+    uint8_t cmd = CC1200_READ | CC1200_BURST | 0x3F; // 0xFF
+    HAL_SPI_Transmit(&hspi1, &cmd, 1, HAL_MAX_DELAY);
+    for (uint8_t i = 0; i < len; i++) {
+        HAL_SPI_Receive(&hspi1, &buffer[i], 1, HAL_MAX_DELAY);
+    }
+    CC_CS_OFF();
+}
 /* USER CODE END 0 */
 
 /**
@@ -365,7 +512,7 @@ int main(void)
 	HMC2_Reset();
 
 	HMC_SetAttenuation(15.5f, 0b10111100); //0b10011100
-	HMC_SetAttenuation2(15.5f, 0b11000100);
+	HMC_SetAttenuation2(15.5f, 0b10111100);
 	HAL_GPIO_WritePin(SHDN_GPIO_Port, SHDN_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(LDAC_GPIO_Port, LDAC_Pin, GPIO_PIN_RESET);
 	HAL_Delay(100);
@@ -397,23 +544,42 @@ int main(void)
 			switch(cc_state)
 			{
 			case 0b001: //rx mode
-				int num_of_bytes = CC1200_rx_read_reg ( CC1200_NUM_RXBYTES );
-				if ( num_of_bytes > 0)
-				{
-					cc_received_byte=CC1200_rx_read_reg(CC1200_FIFO);
-
-	//				received_bytes_arr[received_bytes_arr_ptr]=cc_received_byte;	//использовать только для отладки!!!
-	//				received_bytes_arr_ptr++; 										//использовать только для отладки!!!
-	//				if(received_bytes_arr_ptr>500){									//использовать только для отладки!!!
-	//					received_bytes_arr_ptr=0;									//использовать только для отладки!!!
-	//				}																//использовать только для отладки!!!
-
-					toggle_led_counter++;
-					if(toggle_led_counter>toggle_led_freq_divider)
-					{
-						HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
-						toggle_led_counter=0;
-					}
+				//int num_of_bytes = CC1200_rx_read_reg ( CC1200_NUM_RXBYTES );
+				uint8_t num_bytes = CC1200_rx_read_reg(CC1200_NUM_RXBYTES);
+				if (num_bytes >= 4) {   // минимальная длина пакета (например, 4 байта)
+				    uint8_t rx_packet[128];
+				    CC1200_rx_read_fifo_burst(rx_packet, num_bytes);
+				    // Теперь в rx_packet лежат все байты (от 0 до num_bytes-1)
+				    // Можно обработать пакет: например, проверить первый байт на соответствие diag_mk_len
+				    uint8_t first = rx_packet[0];
+				    // Здесь можно добавить дескремблирование, проверку CRC и т.п.
+				    // Для начала – просто сохранить в массив для отладки
+				    for (uint8_t i = 0; i < num_bytes; i++) {
+				        received_bytes_arr[received_bytes_arr_ptr++] = rx_packet[i];
+				        if (received_bytes_arr_ptr >= 10000) received_bytes_arr_ptr = 0;
+				    }
+				    struct amp_settings my_amp = {
+				    					    .gain      = 3,
+				    					    .bias1     = 2,
+				    					    .bias2     = 2,
+				    					    .vgain     = 1,
+				    					    .vbias     = 5,
+				    					    .preamble  = 0,
+				    					    .video_ena = 1,
+				    					    .diag_ena  = 1
+				    					};
+				    uint16_t amp_word = pack_amp_settings(&my_amp);
+				    uint8_t simple_packet[3];
+				    simple_packet[0] = 2;        // длина данных
+				    simple_packet[1] = amp_word & 0xFF;
+				    simple_packet[2] = (amp_word >> 8) & 0xFF;
+				    CC1200_tx_init();
+				    CC1200_send_packet(simple_packet, 3);
+				    // Мигнуть светодиодом
+				    HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
+				    // Очистить FIFO после чтения (важно!)
+				    CC1200_rx_send_command(CC1200_SFRX);
+				    CC1200_rx_init();
 				}else
 				{
 					HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
@@ -434,120 +600,106 @@ int main(void)
 				CC1200_rx_send_command(CC1200_SRX);
 				break;
 			}
+			int8_t found_rssi_level = 0;
+				    int8_t found_rssi_level2 = 0;
 
+				    uint8_t ch1_ready = 0;
+				    uint8_t ch2_ready = 0;
+
+				    for (uint8_t i = TABLE_SIZE - 1; i > 0; i--) {
+
+				        if (ary2 == 0) {
+				            MCP4922_Write(0, dac_rssi_table[i].dac_value);
+				        }
+
+				        if (ary == 0) {
+				            MCP4922_Write(1, dac_rssi_table[i].dac_value);
+				        }
+
+				        HAL_Delay(10);
+
+				        /* -------- CHANNEL 1 -------- */
+
+				        if (HAL_GPIO_ReadPin(RSII_Q1_EX_GPIO_Port, RSII_Q1_EX_Pin) == GPIO_PIN_SET) {
+
+				            if (ary2 == 0) {
+
+				                found_rssi_level = dac_rssi_table[i].rssi_level;
+
+				                if (found_rssi_level >= -8) {
+				                    ch1_ready = 1;
+				                    trigger_dac0 = dac_rssi_table[i].dac_value;
+				                }
+				            }
+
+				        } else {
+
+				            if (ary2 == 1) {
+
+				               // HMC_SetAttenuation2(15.5f, 0b11000100);
+				                //ary2 = 0;
+
+				                if (ary == 0) {
+				                    HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
+				                }
+				            }
+				        }
+
+				        /* -------- CHANNEL 2 -------- */
+
+				        if (HAL_GPIO_ReadPin(RSII_Q2_EX_GPIO_Port, RSII_Q2_EX_Pin) == GPIO_PIN_SET) {
+
+				            if (ary == 0) {
+
+				                found_rssi_level2 = dac_rssi_table[i].rssi_level;
+
+				                if (found_rssi_level2 >= -8) { //-8
+				                    ch2_ready = 1;
+				                    trigger_dac1 = dac_rssi_table[i].dac_value;
+				                }
+				            }
+
+				        } else {
+
+				            if (ary == 1) {
+
+				                HMC_SetAttenuation(15.5f, 0b10111100);
+				                HMC_SetAttenuation2(15.5f, 0b11000100);
+				                ary = 0;
+				                ary2 = 0;
+				                if (ary2 == 0) {
+				                    HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
+				                }
+				            }
+				        }
+
+				        /* -------- ВКЛЮЧЕНИЕ АРУ СРАЗУ НА ДВУХ -------- */
+
+				        if (ch1_ready || ch2_ready && ary == 0 && ary2 == 0) {
+
+				            HMC_SetAttenuation2(15.5f, 0b10001100);
+				            HMC_SetAttenuation(15.5f, 0b10001100);
+
+				            ary2 = 1;
+				            ary = 1;
+
+				            HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
+
+				            HAL_Delay(100);
+
+				            MCP4922_Write(0, 10); //160
+				            MCP4922_Write(1, 10);
+
+				            HAL_Delay(100);
+
+				            break;
+				        }
+				    }
 	    /* USER CODE END WHILE */
 
 	    /* USER CODE BEGIN 3 */
 		}
 
-
-
-
-
-
-
-	while (1) {
-
-		int8_t found_rssi_level = 0;
-		    int8_t found_rssi_level2 = 0;
-
-		    uint8_t ch1_ready = 0;
-		    uint8_t ch2_ready = 0;
-
-		    for (uint8_t i = TABLE_SIZE - 1; i > 0; i--) {
-
-		        if (ary2 == 0) {
-		            MCP4922_Write(0, dac_rssi_table[i].dac_value);
-		        }
-
-		        if (ary == 0) {
-		            MCP4922_Write(1, dac_rssi_table[i].dac_value);
-		        }
-
-		        HAL_Delay(10);
-
-		        /* -------- CHANNEL 1 -------- */
-
-		        if (HAL_GPIO_ReadPin(RSII_Q1_EX_GPIO_Port, RSII_Q1_EX_Pin) == GPIO_PIN_SET) {
-
-		            if (ary2 == 0) {
-
-		                found_rssi_level = dac_rssi_table[i].rssi_level;
-
-		                if (found_rssi_level >= -8) {
-		                    ch1_ready = 1;
-		                    trigger_dac0 = dac_rssi_table[i].dac_value;
-		                }
-		            }
-
-		        } else {
-
-		            if (ary2 == 1) {
-
-		               // HMC_SetAttenuation2(15.5f, 0b11000100);
-		                //ary2 = 0;
-
-		                if (ary == 0) {
-		                    HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
-		                }
-		            }
-		        }
-
-		        /* -------- CHANNEL 2 -------- */
-
-		        if (HAL_GPIO_ReadPin(RSII_Q2_EX_GPIO_Port, RSII_Q2_EX_Pin) == GPIO_PIN_SET) {
-
-		            if (ary == 0) {
-
-		                found_rssi_level2 = dac_rssi_table[i].rssi_level;
-
-		                if (found_rssi_level2 >= -8) { //-8
-		                    ch2_ready = 1;
-		                    trigger_dac1 = dac_rssi_table[i].dac_value;
-		                }
-		            }
-
-		        } else {
-
-		            if (ary == 1) {
-
-		                HMC_SetAttenuation(15.5f, 0b10111100);
-		                HMC_SetAttenuation2(15.5f, 0b11000100);
-		                ary = 0;
-		                ary2 = 0;
-		                if (ary2 == 0) {
-		                    HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
-		                }
-		            }
-		        }
-
-		        /* -------- ВКЛЮЧЕНИЕ АРУ СРАЗУ НА ДВУХ -------- */
-
-		        if (ch1_ready || ch2_ready && ary == 0 && ary2 == 0) {
-
-		            HMC_SetAttenuation2(15.5f, 0b10001100);
-		            HMC_SetAttenuation(15.5f, 0b10001100);
-
-		            ary2 = 1;
-		            ary = 1;
-
-		            HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
-
-		            HAL_Delay(100);
-
-		            MCP4922_Write(0, 10); //160
-		            MCP4922_Write(1, 10);
-
-		            HAL_Delay(100);
-
-		            break; // выходим из цикла таблицы
-		        }
-		    }
-
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
-	}
   /* USER CODE END 3 */
 }
 
