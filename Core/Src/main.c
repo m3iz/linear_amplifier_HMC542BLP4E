@@ -52,34 +52,16 @@ const uint8_t scrambler_tbl[] = { 0x00, 0xa5, 0xd2, 0x69, 0xb4, 0xda, 0xed,
 		0x3e };
 
 typedef struct {
-    int8_t power_dbm;
-    uint8_t pa_cfg1_value;
+	int8_t power_dbm;
+	uint8_t pa_cfg1_value;
 } TxPowerEntry;
 
-const TxPowerEntry txPowerTable[] = {
-    {  14, 0x7F },
-    {  13, 0x7C },
-    {  12, 0x7A },
-    {  11, 0x78 },
-    {  10, 0x76 },
-    {  9,  0x73 },
-    {  8,  0x71 },
-	{  7,  0x6E },
-	{  6,  0x6C },
-	{  5,  0x6A },
-	{  4,  0x68 },
-	{  3,  0x66 },
-	{  2, 0x63 },
-    {  1, 0x61 },
-	{  0, 0x5F },
-	{  -3, 0x58 },
-	{  -6,  0x51 },
-	{  -11,  0x46 },
-	{  -12,  0x44 },
-	{  -24,  0x42 },
-	{  -40,  0x41 },
+const TxPowerEntry txPowerTable[] = { { 14, 0x7F }, { 13, 0x7C }, { 12, 0x7A },
+		{ 11, 0x78 }, { 10, 0x76 }, { 9, 0x73 }, { 8, 0x71 }, { 7, 0x6E }, { 6,
+				0x6C }, { 5, 0x6A }, { 4, 0x68 }, { 3, 0x66 }, { 2, 0x63 }, { 1,
+				0x61 }, { 0, 0x5F }, { -3, 0x58 }, { -6, 0x51 }, { -11, 0x46 },
+		{ -12, 0x44 }, { -24, 0x42 }, { -40, 0x41 },
 
-    // ... можно добавить и другие значения, если нужно
 };
 
 typedef struct {
@@ -345,7 +327,7 @@ uint8_t CC1200_rx_read_reg(uint16_t regAddr) {
 		HAL_SPI_TransmitReceive(&hspi1, &command, &spiByte, 1, HAL_MAX_DELAY);
 	}
 	HAL_SPI_TransmitReceive(&hspi1, (uint8_t*) &dummyByte, &spiByte, 1,
-			HAL_MAX_DELAY); //send dummy byte for read register
+	HAL_MAX_DELAY); //send dummy byte for read register
 
 	CC_CS_OFF();
 
@@ -514,36 +496,28 @@ void CC1200_rx_read_fifo_burst(uint8_t *buffer, uint8_t len) {
 	CC_CS_OFF();
 }
 
-void CC1200_send_telemetry(void){
-	struct amp_settings my_amp = {
-					 .gain      = 3,
-					 .bias1     = 2,
-					 .bias2     = 2,
-					 .vgain     = 1,
-					 .vbias     = 5,
-					 .preamble  = 0,
-					 .video_ena = 1,
-					 .diag_ena  = 1
-					 };
-					 uint16_t amp_word = pack_amp_settings(&my_amp);
-					 uint8_t simple_packet[3];
-					 simple_packet[0] = 1;        // длина данных
-					 simple_packet[1] = 2;
-					 simple_packet[2] = 3;
-					 simple_packet[3] = 4;
-					 simple_packet[4] = 5;
-					 simple_packet[5] = 6;
-					 simple_packet[6] = 7;
-					 simple_packet[7] = 8;
-					 simple_packet[8] = 9;
-					 simple_packet[9] = 2;
-					 CC1200_tx_init();
-					 CC1200_send_packet(simple_packet, 10);
-					 // Мигнуть светодиодом
-					 //HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
-					 // Очистить FIFO после чтения (важно!)
-					 CC1200_rx_send_command(CC1200_SFRX);
-					 CC1200_rx_init();
+void CC1200_send_telemetry(void) {
+	struct amp_settings my_amp =
+			{ .gain = 3, .bias1 = 2, .bias2 = 2, .vgain = 1, .vbias = 5,
+					.preamble = 0, .video_ena = 1, .diag_ena = 1 };
+	uint16_t amp_word = pack_amp_settings(&my_amp);
+	uint8_t simple_packet[3];
+	simple_packet[0] = 1;        // длина данных
+	simple_packet[1] = 2;
+	simple_packet[2] = 3;
+	simple_packet[3] = 4;
+	simple_packet[4] = 5;
+	simple_packet[5] = 6;
+	simple_packet[6] = 7;
+	simple_packet[7] = 8;
+	simple_packet[8] = 9;
+	simple_packet[9] = 2;
+	CC1200_send_packet(simple_packet, 10);
+	// Мигнуть светодиодом
+	//HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
+	// Очистить FIFO после чтения (важно!)
+	//CC1200_rx_send_command(CC1200_SFRX);
+	//CC1200_rx_init();
 }
 /* USER CODE END 0 */
 
@@ -634,20 +608,35 @@ int main(void) {
 					if (idx < sizeof(attValue) / sizeof(attValue[0])) {
 						HMC_SetAttenuation(15.5f, attValue[idx].registerValue);
 					}
+					CC1200_tx_init();
 					CC1200_send_telemetry();
+					CC1200_rx_init();
 				} else if (rx_packet[0] == 0x02) {
 					uint8_t idx = rx_packet[1];
 					if (idx < sizeof(attValue) / sizeof(attValue[0])) {
 						HMC_SetAttenuation2(15.5f, attValue[idx].registerValue);
 					}
+					CC1200_tx_init();
 					CC1200_send_telemetry();
+					CC1200_rx_init();
 				} else if (rx_packet[0] == 0x03) {
 					uint8_t tx_power = rx_packet[1];
-					if (tx_power < sizeof(TxPowerEntry) / sizeof(TxPowerEntry[0])) {
-						CC1200_rx_write_reg(CC1200_PA_CFG1, txPowerTable[tx_power].pa_cfg1_value);
+					if (tx_power
+							< sizeof(TxPowerEntry) / sizeof(TxPowerEntry[0])) {
+						CC1200_rx_write_reg(CC1200_PA_CFG1,
+								txPowerTable[tx_power].pa_cfg1_value);
 					}
+					CC1200_tx_init();
 					CC1200_send_telemetry();
+					CC1200_rx_init();
+				} else if (rx_packet[0] == 0x04) {
+					CC1200_tx_init();
+					while(1){
+						CC1200_send_telemetry();
+						HAL_Delay(100);
+					}
 				}
+				CC1200_rx_send_command(CC1200_SFRX);
 				//uint8_t first = rx_packet[0];
 				// Здесь можно добавить дескремблирование, проверку CRC и т.п.
 				// Для начала – просто сохранить в массив для отладки
