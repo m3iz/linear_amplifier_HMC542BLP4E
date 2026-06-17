@@ -56,12 +56,28 @@ typedef struct {
 	uint8_t pa_cfg1_value;
 } TxPowerEntry;
 
-const TxPowerEntry txPowerTable[] = { { 14, 0x7F }, { 13, 0x7C }, { 12, 0x7A },
-		{ 11, 0x78 }, { 10, 0x76 }, { 9, 0x73 }, { 8, 0x71 }, { 7, 0x6E }, { 6,
-				0x6C }, { 5, 0x6A }, { 4, 0x68 }, { 3, 0x66 }, { 2, 0x63 }, { 1,
-				0x61 }, { 0, 0x5F }, { -3, 0x58 }, { -6, 0x51 }, { -11, 0x46 },
-		{ -12, 0x44 }, { -24, 0x42 }, { -40, 0x41 },
-
+const TxPowerEntry txPowerTable[] = {
+    {  14, 0x7F },
+    {  13, 0x7C },
+    {  12, 0x7A },
+    {  11, 0x78 },
+    {  10, 0x76 },
+    {  9,  0x73 },
+    {  8,  0x71 },
+	{  7,  0x6E },
+	{  6,  0x6C },
+	{  5,  0x6A },
+	{  4,  0x68 },
+	{  3,  0x66 },
+	{  2, 0x63 },
+    {  1, 0x61 },
+	{  0, 0x5F },
+	{  -3, 0x58 },
+	{  -6,  0x51 },
+	{  -11,  0x46 },
+	{  -12,  0x44 },
+	{  -24,  0x42 },
+	{  -40,  0x41 },
 };
 
 typedef struct {
@@ -146,20 +162,17 @@ struct amp_settings {
 	unsigned preamble :2;
 	unsigned video_ena :1;
 	unsigned diag_ena :1;
-};
+} amp_settings1;
 
-// Размер массива
 #define TABLE_SIZE (sizeof(dac_rssi_table) / sizeof(DAC_RSSI))
 
 static void delay_ns(uint32_t ns) {
-	// Простейшая заглушка — точную задержку можно потом сделать через DWT
 	for (volatile uint32_t i = 0; i < (ns / 10 + 1); i++) {
 		__NOP();
 	}
 }
 
 void MCP4922_Write(uint8_t channel, uint16_t value) {
-	// 1) Собираем слово кадра
 	uint16_t frame = 0;
 	frame |= ((channel & 0x1) << 15);  // D15 — канал: 0=A, 1=B
 	frame |= (0 << 14);                // D14 — unbuffered (0)
@@ -167,7 +180,6 @@ void MCP4922_Write(uint8_t channel, uint16_t value) {
 	frame |= (1 << 12);                // D12 — shutdown = active (1)
 	frame |= (value & 0x0FFF);         // D11…D0 — 12-бит данные
 
-	// разбиваем на байты
 	uint8_t spiData[2] = { (uint8_t) (frame >> 8), (uint8_t) (frame & 0xFF) };
 
 	// 2) SPI-передача с CS LOW→HIGH
@@ -181,12 +193,9 @@ void MCP4922_Write(uint8_t channel, uint16_t value) {
 }
 
 void MCP4922_Send(uint8_t control, uint8_t data) {
-	// CS LOW
 	HAL_GPIO_WritePin(Chip_GPIO_Port, Chip_Pin, GPIO_PIN_RESET);
-	// Передаём сначала control, затем data
 	HAL_SPI_Transmit(&hspi1, &control, 1, HAL_MAX_DELAY);
 	HAL_SPI_Transmit(&hspi1, &data, 1, HAL_MAX_DELAY);
-	// CS HIGH
 	HAL_GPIO_WritePin(Chip_GPIO_Port, Chip_Pin, GPIO_PIN_SET);
 }
 
@@ -365,26 +374,21 @@ void CC1200_tx_init(void) {
 }
 
 void CC1200_send_packet(const uint8_t *data, uint8_t len) {
-	CC1200_rx_send_command(CC1200_SIDLE);
-	CC1200_rx_send_command(CC1200_SFTX);
-	// Burst запись в FIFO
-	CC_CS_ON();
-	uint8_t burstCmd = CC1200_WRITE | CC1200_BURST | 0x3F; // 0x7F
-	HAL_SPI_Transmit(&hspi1, &burstCmd, 1, HAL_MAX_DELAY);
-	HAL_SPI_Transmit(&hspi1, &len, 1, HAL_MAX_DELAY);
-	HAL_SPI_Transmit(&hspi1, (uint8_t*) data, len, HAL_MAX_DELAY);
-	CC_CS_OFF();
-	CC1200_rx_send_command(CC1200_STX);
-	// Ждём завершения (состояние IDLE)
-	uint32_t timeout = 5000;
-	while (timeout--) {
-		uint8_t state = get_cc_state();
-		if (state == 0b000)
-			break;
-		HAL_Delay(1);
-	}
-	if (timeout == 0)
-		CC1200_rx_send_command(CC1200_SIDLE);
+    CC1200_rx_send_command(CC1200_SIDLE);
+    CC1200_rx_send_command(CC1200_SFTX);
+    CC_CS_ON();
+    uint8_t burstCmd = CC1200_WRITE | CC1200_BURST | 0x3F;
+    HAL_SPI_Transmit(&hspi1, &burstCmd, 1, HAL_MAX_DELAY);
+    // НЕ отправляем len отдельно! data уже содержит полный пакет
+    HAL_SPI_Transmit(&hspi1, (uint8_t*)data, len, HAL_MAX_DELAY);
+    CC_CS_OFF();
+    CC1200_rx_send_command(CC1200_STX);
+    uint32_t timeout = 5000;
+    while (timeout--) {
+        if (get_cc_state() == 0b000) break;
+        HAL_Delay(1);
+    }
+    if (timeout == 0) CC1200_rx_send_command(CC1200_SIDLE);
 }
 
 void CC1200_rx_init() {
@@ -472,19 +476,73 @@ uint16_t pack_amp_settings(struct amp_settings *a) {
 			| ((a->video_ena & 0x01) << 2) | ((a->diag_ena & 0x01) << 1);
 }
 
-void send_amp_info(void) {
 
-	struct amp_settings amp = { .gain = 3, .bias1 = 2, .bias2 = 2, .vgain = 1,
-			.vbias = 5, .preamble = 0, .video_ena = 1, .diag_ena = 1 };
-	uint8_t data[2];
-	memcpy(data, &amp, sizeof(amp));
-
-	uint8_t txbuf[128];
-	uint16_t pkt_len = diag_build_packet(txbuf, 0x0003, 0x03, 0x00, data,
-			sizeof(amp));
-
-	CC1200_send_packet(txbuf, pkt_len);
+int diag_descramble(uint8_t *data, uint8_t len) {
+    if (len < 3) return 0;
+    // Скремблированы все байты, кроме последних трёх (0xAA)
+    for (uint8_t i = 0; i < len - 3; i++) {
+        data[i] ^= scrambler_tbl[i % sizeof(scrambler_tbl)];
+    }
+    // Проверка CRC (CRC считается по data[0] до len-5, т.к. последние 5 байт: CRC(2) + AA(3))
+    if (len < 5) return 0;
+    uint16_t crc_received = (data[len-5] << 8) | data[len-6];
+    uint16_t crc_calc = crc16_modbus(data, len - 5);
+    if (crc_received != crc_calc) return 0;
+    // Проверка, что последние три байта = 0xAA
+    if (data[len-3] != 0xAA || data[len-2] != 0xAA || data[len-1] != 0xAA) return 0;
+    return 1;
 }
+
+uint16_t diag_build_reply(uint8_t *buf, uint16_t addr, uint8_t req,
+                          uint8_t rssi, uint8_t adcvid, uint8_t adcul,
+                          uint8_t adcdl, uint8_t adcvin, uint8_t lsbs,
+                          uint16_t amp) {
+    // Размер полезной нагрузки без sz = 2+1+1+1+1+1+1+2+1 = 11 байт?
+    // По документации sz = 12 (включая само поле sz). Значит payload_len = 11.
+    uint8_t payload_len = 12; // addr(2)+rssi(1)+adcvid(1)+adcul(1)+adcdl(1)+adcvin(1)+lsbs(1)+amp(2)+pad(1)
+    uint8_t enc_len = diag_mk_len(payload_len);
+    if (!enc_len) return 0;
+
+    buf[0] = enc_len;
+    buf[1] = addr >> 8;
+    buf[2] = addr & 0xFF;
+    buf[3] = req;
+    buf[4] = rssi;
+    buf[5] = adcvid;
+    buf[6] = adcul;
+    buf[7] = adcdl;
+    buf[8] = adcvin;
+    buf[9] = lsbs;
+    buf[10] = amp >> 8;
+    buf[11] = amp & 0xFF;
+    buf[12] = 0; // pad
+
+    uint16_t crc = crc16_modbus(buf, payload_len + 1);
+    uint8_t *p = buf + payload_len + 1;
+    *p++ = crc & 0xFF;
+    *p++ = crc >> 8;
+    *p++ = 0xAA;
+    *p++ = 0xAA;
+    *p++ = 0xAA;
+
+    uint8_t total_len = payload_len + 1 + 2 + 3; // enc_len + payload + crc + AA*3
+    for (uint8_t i = 0; i < total_len - 3; i++) {
+        buf[i] ^= scrambler_tbl[i % sizeof(scrambler_tbl)];
+    }
+    return total_len;
+}
+
+
+void send_telemetry_reply(uint16_t addr, uint8_t req) {
+    //get rssi and ect
+    uint8_t rssi = 0;
+    uint8_t adcvid = 0, adcul = 0, adcdl = 0, adcvin = 0, lsbs = 0;
+    uint16_t amp = pack_amp_settings(&amp_settings1); // актуальные настройки усилителя
+    uint8_t buf[128];
+    uint16_t len = diag_build_reply(buf, addr, req, rssi, adcvid, adcul, adcdl, adcvin, lsbs, amp);
+    if (len) CC1200_send_packet(buf, len);
+}
+
 
 void CC1200_rx_read_fifo_burst(uint8_t *buffer, uint8_t len) {
 	CC_CS_ON();
@@ -496,28 +554,16 @@ void CC1200_rx_read_fifo_burst(uint8_t *buffer, uint8_t len) {
 	CC_CS_OFF();
 }
 
-void CC1200_send_telemetry(void) {
-	struct amp_settings my_amp =
-			{ .gain = 3, .bias1 = 2, .bias2 = 2, .vgain = 1, .vbias = 5,
-					.preamble = 0, .video_ena = 1, .diag_ena = 1 };
-	uint16_t amp_word = pack_amp_settings(&my_amp);
-	uint8_t simple_packet[3];
-	simple_packet[0] = 1;        // длина данных
-	simple_packet[1] = 2;
-	simple_packet[2] = 3;
-	simple_packet[3] = 4;
-	simple_packet[4] = 5;
-	simple_packet[5] = 6;
-	simple_packet[6] = 7;
-	simple_packet[7] = 8;
-	simple_packet[8] = 9;
-	simple_packet[9] = 2;
-	CC1200_send_packet(simple_packet, 10);
-	// Мигнуть светодиодом
-	//HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
-	// Очистить FIFO после чтения (важно!)
-	//CC1200_rx_send_command(CC1200_SFRX);
-	//CC1200_rx_init();
+
+void unpack_amp_settings(uint16_t amp_word, struct amp_settings *a) {
+    a->gain      = (amp_word >> 13) & 0x07;
+    a->bias1     = (amp_word >> 11) & 0x03;
+    a->bias2     = (amp_word >> 9) & 0x03;
+    a->vgain     = (amp_word >> 8) & 0x01;
+    a->vbias     = (amp_word >> 5) & 0x07;
+    a->preamble  = (amp_word >> 3) & 0x03;
+    a->video_ena = (amp_word >> 2) & 0x01;
+    a->diag_ena  = (amp_word >> 1) & 0x01;
 }
 /* USER CODE END 0 */
 
@@ -598,81 +644,66 @@ int main(void) {
 		case 0b001: //rx mode
 			//int num_of_bytes = CC1200_rx_read_reg ( CC1200_NUM_RXBYTES );
 			uint8_t num_bytes = CC1200_rx_read_reg(CC1200_NUM_RXBYTES);
-			if (num_bytes > 0) { // минимальная длина пакета (например, 4 байта)
-				uint8_t rx_packet[128];
-				CC1200_rx_read_fifo_burst(rx_packet, num_bytes);
-				// Теперь в rx_packet лежат все байты (от 0 до num_bytes-1)
-				// Можно обработать пакет: например, проверить первый байт на соответствие diag_mk_len
-				if (rx_packet[0] == 0x01) {
-					uint8_t idx = rx_packet[1];
-					if (idx < sizeof(attValue) / sizeof(attValue[0])) {
-						HMC_SetAttenuation(15.5f, attValue[idx].registerValue);
-					}
-					CC1200_tx_init();
-					CC1200_send_telemetry();
-					CC1200_rx_init();
-				} else if (rx_packet[0] == 0x02) {
-					uint8_t idx = rx_packet[1];
-					if (idx < sizeof(attValue) / sizeof(attValue[0])) {
-						HMC_SetAttenuation2(15.5f, attValue[idx].registerValue);
-					}
-					CC1200_tx_init();
-					CC1200_send_telemetry();
-					CC1200_rx_init();
-				} else if (rx_packet[0] == 0x03) {
-					uint8_t tx_power = rx_packet[1];
-					if (tx_power
-							< sizeof(TxPowerEntry) / sizeof(TxPowerEntry[0])) {
-						CC1200_rx_write_reg(CC1200_PA_CFG1,
-								txPowerTable[tx_power].pa_cfg1_value);
-					}
-					CC1200_tx_init();
-					CC1200_send_telemetry();
-					CC1200_rx_init();
-				} else if (rx_packet[0] == 0x04) {
-					CC1200_tx_init();
-					while(1){
-						CC1200_send_telemetry();
-						HAL_Delay(100);
-					}
-				}
-				CC1200_rx_send_command(CC1200_SFRX);
-				//uint8_t first = rx_packet[0];
-				// Здесь можно добавить дескремблирование, проверку CRC и т.п.
-				// Для начала – просто сохранить в массив для отладки
-				//for (uint8_t i = 0; i < num_bytes; i++) {
-				// received_bytes_arr[received_bytes_arr_ptr++] = rx_packet[i];
-				//  if (received_bytes_arr_ptr >= 10000) received_bytes_arr_ptr = 0;
-				//}
-				/*struct amp_settings my_amp = {
-				 .gain      = 3,
-				 .bias1     = 2,
-				 .bias2     = 2,
-				 .vgain     = 1,
-				 .vbias     = 5,
-				 .preamble  = 0,
-				 .video_ena = 1,
-				 .diag_ena  = 1
-				 };
-				 uint16_t amp_word = pack_amp_settings(&my_amp);
-				 uint8_t simple_packet[3];
-				 simple_packet[0] = 1;        // длина данных
-				 simple_packet[1] = 2;
-				 simple_packet[2] = 3;
-				 simple_packet[3] = 4;
-				 simple_packet[4] = 5;
-				 simple_packet[5] = 6;
-				 simple_packet[6] = 7;
-				 simple_packet[7] = 8;
-				 simple_packet[8] = 9;
-				 simple_packet[9] = 2;
-				 CC1200_tx_init();
-				 CC1200_send_packet(simple_packet, 10);
-				 // Мигнуть светодиодом
-				 //HAL_GPIO_TogglePin(LED3_GPIO_Port, LED3_Pin);
-				 // Очистить FIFO после чтения (важно!)
-				 CC1200_rx_send_command(CC1200_SFRX);
-				 CC1200_rx_init();*/
+			if (num_bytes > 0) {
+			    uint8_t rx_packet[128];
+			    CC1200_rx_read_fifo_burst(rx_packet, num_bytes);
+			    if (!diag_descramble(rx_packet, num_bytes)) {
+			        // пакет невалиден – игнорируем
+			        CC1200_rx_send_command(CC1200_SFRX);
+			        break;
+			    }
+			    // теперь rx_packet[0] – кодированная длина, [1]..[2] – addr, [3] – req, [4] – opt, [5].. – data
+			    uint16_t src_addr = (rx_packet[1] << 8) | rx_packet[2];
+			    uint8_t req = rx_packet[3];
+			    uint8_t opt = rx_packet[4];
+			    // data_len = (enc_len & 0x0F) * 4? Но проще вычислить из общего размера
+			    // payload_len = (enc_len & 0x0F) * 4 + 4? Лучше по размеру полученного пакета
+
+			    uint8_t enc_len = rx_packet[0];
+			    uint8_t payload_len = ((enc_len & 0x0F) + 1) * 4; // обратное преобразование diag_mk_len
+			    uint8_t data_len = payload_len - 4;
+			    uint8_t *data_ptr = &rx_packet[5];
+
+			    if (req == 0) { // PCK_REQ_GENERAL
+			        send_telemetry_reply(src_addr, req);
+			    }else if (req == 2) { // PCK_SET_PARAMS
+			        if (data_len >= 2) {
+			            uint16_t amp_word = (data_ptr[1] << 8) | data_ptr[0]; // little-endian: младший байт первым
+			            unpack_amp_settings(amp_word, &amp_settings1);    // сохраняем в глобальную структуру
+
+			            // Применяем настройки к усилителю.
+			            // Например, используем поле gain для выбора аттенюации (map 0..7 -> индекс в attValue)
+			            // Можно отобразить gain * 4 (макс 28, но у нас таблица до 31)
+			            uint8_t idx = amp_settings1.gain * 4;
+			            if (idx >= sizeof(attValue)/sizeof(attValue[0])) idx = sizeof(attValue)/sizeof(attValue[0])-1;
+			            // Устанавливаем аттенюацию для обоих каналов одинаково (или по-другому)
+			            HMC_SetAttenuation(15.5f, attValue[idx].registerValue);
+			            HMC_SetAttenuation2(15.5f, attValue[idx].registerValue);
+			            // Здесь также можно применить другие поля (bias, vgain и т.д.) к другим узлам.
+			        }
+			        send_telemetry_reply(src_addr, req);
+			    } else if (req == 3) { // PCK_START_TEST
+			        if (data_len >= 1) {
+			            uint8_t timeout = data_ptr[0]; // время теста
+			            // Запустить тестовый режим (непрерывная передача)
+			        }
+			        send_telemetry_reply(src_addr, req);
+			    }
+			    else if (req == 4) {
+			        if (data_len >= 2) {
+			            uint8_t code_down = data_ptr[0]; // код для канала 1 (вниз)
+			            uint8_t code_up   = data_ptr[1]; // код для канала 2 (вверх)
+			            HMC_SetAttenuation(0, code_down);
+			            HMC_SetAttenuation2(0, code_up);
+			        } else if (data_len == 1) {
+			            // если передан один байт – применить к обоим
+			            uint8_t code = data_ptr[0];
+			            HMC_SetAttenuation(0, code);
+			            HMC_SetAttenuation2(0, code);
+			        }
+			        send_telemetry_reply(src_addr, req);
+			    }
+			    CC1200_rx_send_command(CC1200_SFRX);
 			} else {
 				//HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
 			}
