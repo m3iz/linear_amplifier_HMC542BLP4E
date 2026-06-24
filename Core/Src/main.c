@@ -635,7 +635,7 @@ int main(void) {
  				CC1200_rx_read_fifo_burst(rx_packet, num_bytes);
 				uint8_t start = 0;
 				    while (start < num_bytes && rx_packet[start] == 0xAA) start++;
-				    if (start >= num_bytes) {
+				    if (start > num_bytes) {
 				        CC1200_rx_send_command(CC1200_SFRX);
 				        break;
 				    }
@@ -666,7 +666,12 @@ int main(void) {
 				uint8_t *data_ptr = &rx_packet[5];
 
 				if (req == 0) { // PCK_REQ_GENERAL
-					send_telemetry_reply(src_addr, req);
+					uint16_t src_addr = (rx_packet[1] << 8) | rx_packet[2];
+										//CC1200_tx_init();
+										CC1200_tx_init();
+										send_telemetry_reply(src_addr, 2);
+										CC1200_rx_send_command(CC1200_SFRX);
+										CC1200_rx_init();
 				} else if (req == 2) { // PCK_SET_PARAMS
 					if (data_len >= 2) {
 						uint16_t amp_word = (data_ptr[1] << 8) | data_ptr[0]; // little-endian: младший байт первым
@@ -702,9 +707,12 @@ int main(void) {
 						HMC_SetAttenuation(0, code);
 						HMC_SetAttenuation2(0, code);
 					}
-					send_telemetry_reply(src_addr, req);
+					CC1200_tx_init();
+					send_telemetry_reply(src_addr, 2);
+					CC1200_rx_init();
 				}
 				CC1200_rx_send_command(CC1200_SFRX);
+				CC1200_rx_init();
 			} else {
 				//HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
 			}
