@@ -121,7 +121,7 @@ uint8_t received_bytes_arr[10000] = { 0 };
 int received_bytes_arr_ptr = 0;
 
 int ary = 0;
-int rssi = 0;
+
 
 int ary2 = 0;
 int rssi2 = 0;
@@ -148,6 +148,9 @@ struct amp_settings {
 	unsigned video_ena :1;
 	unsigned diag_ena :1;
 } amp_settings1;
+
+uint8_t rssi = 1;
+uint8_t adcvid = 2, adcul = 3, adcdl = 4, adcvin = 5, lsbs = 6;
 
 #define TABLE_SIZE (sizeof(dac_rssi_table) / sizeof(DAC_RSSI))
 
@@ -422,39 +425,6 @@ uint8_t diag_mk_len(uint8_t n) {
 	return ((~n & 15) << 4) | n;
 }
 
-uint16_t diag_build_packet(uint8_t *buf, uint16_t addr, uint8_t req,
-		uint8_t opt, const uint8_t *data, uint8_t data_len) {
-	uint8_t payload_len = 4 + data_len; // addr(2) + req(1) + opt(1) + data
-	uint8_t enc_len = diag_mk_len(payload_len);
-	if (!enc_len)
-		return 0;
-
-	buf[0] = enc_len;
-	buf[1] = addr >> 8;
-	buf[2] = addr & 0xFF;
-	buf[3] = req;
-	buf[4] = opt;
-	if (data_len && data) {
-		memcpy(&buf[5], data, data_len);
-	}
-
-	uint16_t crc = crc16_modbus(buf, payload_len + 1);
-	uint8_t *p = buf + payload_len + 1;
-	*p++ = crc & 0xFF;
-	*p++ = crc >> 8;
-
-	*p++ = 0xAA;
-	*p++ = 0xAA;
-	*p++ = 0xAA;
-
-	uint8_t total_len = payload_len + 1 + 2 + 3; // enc_len + addr+req+opt+data + crc + 3*AA
-
-	for (uint8_t i = 0; i < total_len; i++) {
-		buf[i] ^= scrambler_tbl[i % sizeof(scrambler_tbl)];
-	}
-	return total_len;
-}
-
 uint16_t pack_amp_settings(struct amp_settings *a) {
 	return ((a->gain & 0x07) << 13) | ((a->bias1 & 0x03) << 11)
 			| ((a->bias2 & 0x03) << 9) | ((a->vgain & 0x01) << 8)
@@ -477,8 +447,8 @@ int diag_descramble(uint8_t *data, uint8_t len) {
 	//if (crc_received != crc_calc)
 	//	return 0;
 	// Проверка, что последние три байта = 0xAA
-	//if (data[len - 3] != 0xAA || data[len - 2] != 0xAA || data[len - 1] != 0xAA)
-	//	return 0;
+	if (data[len - 3] != 0xAA || data[len - 2] != 0xAA || data[len - 1] != 0xAA)
+		return 0;
 	return 1;
 }
 
@@ -523,8 +493,6 @@ uint16_t diag_build_reply(uint8_t *buf, uint16_t addr, uint8_t req,
 
 void send_telemetry_reply(uint16_t addr, uint8_t req) {
 	//get rssi and ect
-	uint8_t rssi = 1;
-	uint8_t adcvid = 2, adcul = 3, adcdl = 4, adcvin = 5, lsbs = 6;
 	uint16_t amp = pack_amp_settings(&amp_settings1); // актуальные настройки усилителя
 	uint8_t buf[128];
 	uint16_t addr1 = 0x1594;
@@ -669,10 +637,10 @@ int main(void)
 
 				if (!diag_descramble(rx_packet, num_bytes)) {
 					// пакет невалиден – игнорируем
-					uint16_t src_addr = (rx_packet[1] << 8) | rx_packet[2];
+					//uint16_t src_addr = (rx_packet[1] << 8) | rx_packet[2];
 					//CC1200_tx_init();
-					CC1200_tx_init();
-					send_telemetry_reply(src_addr, 2);
+					//CC1200_tx_init();
+					//send_telemetry_reply(src_addr, 2);
 					CC1200_rx_send_command(CC1200_SFRX);
 					CC1200_rx_init();
 					break;
@@ -715,24 +683,23 @@ int main(void)
 					send_telemetry_reply(src_addr, req);
 				} else if (req == 3) { // PCK_START_TEST
 					if (data_len >= 1) {
-						uint8_t timeout = data_ptr[0]; // время теста
-						// Запустить тестовый режим (непрерывная передача)
+						uint8_t timeout = data_ptr[0];
+
 					}
 					send_telemetry_reply(src_addr, req);
 				} else if (req == 12) {
 					if (data_len >= 2) {
-						uint8_t code_down = data_ptr[0]; // код для канала 1 (вниз)
-						uint8_t code_up = data_ptr[1]; // код для канала 2 (вверх)
+						uint8_t code_down = data_ptr[0];
+						uint8_t code_up = data_ptr[1];
 						HMC_SetAttenuation(0, code_down);
 						HMC_SetAttenuation2(0, code_up);
 					} else if (data_len == 1) {
-						// если передан один байт – применить к обоим
 						uint8_t code = data_ptr[0];
 						HMC_SetAttenuation(0, code);
 						HMC_SetAttenuation2(0, code);
 					}
 					CC1200_tx_init();
-					send_telemetry_reply(src_addr, 2);
+					send_telemetry_reply(src_addr, 12);
 					CC1200_rx_init();
 				}
 				CC1200_rx_send_command(CC1200_SFRX);
