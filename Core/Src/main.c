@@ -89,6 +89,10 @@ const attValues_t attValue[] = {
 				31.1, 31 }, { 0b00000100, 31, 32.1, 32 },
 
 };
+
+uint8_t current_att_down = 0xBC; // начальное значение (9 дБ)
+uint8_t current_att_up   = 0xBC;
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -467,8 +471,8 @@ uint16_t diag_build_reply(uint8_t *buf, uint16_t addr, uint8_t req,
 	buf[2] = addr & 0xFF;
 	buf[3] = req;
 	buf[4] = rssi;
-	buf[5] = adcvid;
-	buf[6] = adcul;
+	buf[5] = amp >> 8;
+	buf[6] = amp & 0xFF;
 	buf[7] = adcdl;
 	buf[8] = adcvin;
 	buf[9] = lsbs;
@@ -492,14 +496,31 @@ uint16_t diag_build_reply(uint8_t *buf, uint16_t addr, uint8_t req,
 }
 
 void send_telemetry_reply(uint16_t addr, uint8_t req) {
-	//get rssi and ect
-	uint16_t amp = pack_amp_settings(&amp_settings1); // актуальные настройки усилителя
-	uint8_t buf[128];
-	uint16_t addr1 = 0x1594;
-	uint16_t len = diag_build_reply(buf, addr1, req, rssi, adcvid, adcul, adcdl,
-			adcvin, lsbs, amp);
-	if (len)
-		CC1200_send_packet(buf, len);
+
+    //uint8_t rssi = 0; // заглушка
+
+    // Старшие 8 бит напряжения (adc_raw_vin — 12 бит, сдвигаем на 2)
+    uint8_t adcvin = adc_raw_vin >> 2;
+    // Младшие 2 бита напряжения (и других каналов) — пока только для vin
+    uint8_t lsbs = (adc_raw_vin & 0x03) << 6; // биты 6-7 для vin
+
+    // Пока другие АЦП не используются, заполняем нулями
+    uint8_t adcvid = 0;
+    uint8_t adcul  = 0;
+    uint8_t adcdl  = 0;
+    // можно добавить lsbs для них, если будут
+
+    // В поле amp передаём коды аттенюации (down — старший байт, up — младший)
+    uint16_t amp = (current_att_down << 8) | current_att_up | 0x8000;
+
+    uint8_t buf[128];
+    uint16_t len = diag_build_reply(buf, addr, req, rssi, adcvid, adcul, adcdl,
+                                    adcvin, lsbs, amp);
+    if (len) {
+        //CC1200_tx_init();      // переключить на передачу
+        CC1200_send_packet(buf, len);
+        //CC1200_rx_init();      // вернуться на приём
+    }
 }
 
 void CC1200_rx_read_fifo_burst(uint8_t *buffer, uint8_t len) {
@@ -593,6 +614,8 @@ int main(void)
 
 	HMC_SetAttenuation(15.5f, 0b10111100); //0b10011100
 	HMC_SetAttenuation2(15.5f, 0b10111100);
+	current_att_down=0b10111100;
+	current_att_up=0b10111100;
 	HAL_GPIO_WritePin(SHDN_GPIO_Port, SHDN_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(LDAC_GPIO_Port, LDAC_Pin, GPIO_PIN_RESET);
 	HAL_Delay(100);
@@ -612,7 +635,6 @@ int main(void)
 	uint32_t trigger_dac1 = 0;
 
 	while (1) {
-		//это временный вариант - мигает светодиодом, если есть байты в буфере FIFO
 		//HAL_Delay(1);
 		const int toggle_led_freq_divider = 10;
 		static int toggle_led_counter = 0;
@@ -661,9 +683,10 @@ int main(void)
 					uint16_t src_addr = (rx_packet[1] << 8) | rx_packet[2];
 										//CC1200_tx_init();
 										CC1200_tx_init();
-										send_telemetry_reply(src_addr, 2);
+										send_telemetry_reply(src_addr, 0);
 										CC1200_rx_send_command(CC1200_SFRX);
 										CC1200_rx_init();
+										adc_raw_vin = read_adc_channel(&hadc1, ADC_CHANNEL_11); // МОЖНО СДЕЛАТЬ ПО ТАЙМЕРУ
 				} else if (req == 2) { // PCK_SET_PARAMS
 					if (data_len >= 2) {
 						uint16_t amp_word = (data_ptr[1] << 8) | data_ptr[0]; // little-endian: младший байт первым
@@ -691,6 +714,8 @@ int main(void)
 					if (data_len >= 2) {
 						uint8_t code_down = data_ptr[0];
 						uint8_t code_up = data_ptr[1];
+						current_att_down = code_down;
+						current_att_up   = code_up;
 						HMC_SetAttenuation(0, code_down);
 						HMC_SetAttenuation2(0, code_up);
 					} else if (data_len == 1) {
@@ -699,7 +724,7 @@ int main(void)
 						HMC_SetAttenuation2(0, code);
 					}
 					CC1200_tx_init();
-					send_telemetry_reply(src_addr, 12);
+					send_telemetry_reply(0x4444, 12);
 					CC1200_rx_init();
 				}
 				CC1200_rx_send_command(CC1200_SFRX);
@@ -748,7 +773,7 @@ int main(void)
 
 				if (ary2 == 0) {
 
-					found_rssi_level = dac_rssi_table[i].rssi_level;
+					rssi = dac_rssi_table[i].rssi_level;
 
 					if (found_rssi_level >= -8) {
 						ch1_ready = 1;
@@ -789,8 +814,8 @@ int main(void)
 
 				if (ary == 1) {
 
-					HMC_SetAttenuation(15.5f, 0b10111100);
-					HMC_SetAttenuation2(15.5f, 0b11000100);
+					HMC_SetAttenuation(15.5f, current_att_down);
+					HMC_SetAttenuation2(15.5f, current_att_up);
 					ary = 0;
 					ary2 = 0;
 					if (ary2 == 0) {
@@ -806,6 +831,8 @@ int main(void)
 
 				HMC_SetAttenuation2(15.5f, 0b10001100);
 				HMC_SetAttenuation(15.5f, 0b10001100);
+				current_att_down=0b10001100;
+				current_att_up=0b10001100;
 
 				ary2 = 1;
 				ary = 1;
