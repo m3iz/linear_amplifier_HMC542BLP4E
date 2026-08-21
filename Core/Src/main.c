@@ -620,7 +620,8 @@ int main(void)
 	HAL_GPIO_WritePin(SHDN_GPIO_Port, SHDN_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(LDAC_GPIO_Port, LDAC_Pin, GPIO_PIN_RESET);
 	HAL_Delay(100);
-	MCP4922_Write(1, 4095); //1230 - 1В
+	MCP4922_Write(1, 0); //1230 - 1В
+	MCP4922_Write(0, 0); //1230 - 1В
 	HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
 	//HAL_GPIO_WritePin(CC_RESET_GPIO_Port, CC_RESET_Pin, GPIO_PIN_RESET);
 
@@ -634,8 +635,7 @@ int main(void)
 	//HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
 	uint32_t trigger_dac0 = 0;
 	uint32_t trigger_dac1 = 0;
-	MCP4922_Write(1, 1200);
-	MCP4922_Write(0, 1200);
+
 	//MCP4922_Write(1, dac_rssi_table[i].dac_value);
 	while (1) {
 		//HAL_Delay(1);
@@ -751,8 +751,8 @@ int main(void)
 			CC1200_rx_send_command(CC1200_SRX);
 			break;
 		}
-		int8_t found_rssi_level = 0;
-		int8_t found_rssi_level2 = 0;
+		int8_t found_rssi_level = -200;
+		int8_t found_rssi_level2 = -200;
 
 		uint8_t ch1_ready = 0;
 		uint8_t ch2_ready = 0;
@@ -776,7 +776,7 @@ int main(void)
 
 				if (ary2 == 0) {
 
-					rssi = dac_rssi_table[i].rssi_level;
+					found_rssi_level = dac_rssi_table[i].rssi_level;
 
 					if (found_rssi_level >= -8) {
 						ch1_ready = 1;
@@ -788,8 +788,10 @@ int main(void)
 
 				if (ary2 == 1) {
 
-					// HMC_SetAttenuation2(15.5f, 0b11000100);
-					//ary2 = 0;
+					HMC_SetAttenuation(15.5f, current_att_down);
+					HMC_SetAttenuation2(15.5f, current_att_up);
+					ary = 0;
+					ary2 = 0;
 
 					if (ary == 0) {
 						HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin,
@@ -832,10 +834,10 @@ int main(void)
 
 			if (ch1_ready || ch2_ready && ary == 0 && ary2 == 0) {
 
-				HMC_SetAttenuation2(15.5f, 0b10001100);
-				HMC_SetAttenuation(15.5f, 0b10001100);
-				current_att_down=0b10001100;
-				current_att_up=0b10001100;
+				HMC_SetAttenuation2(15.5f, 0b11001100);
+				HMC_SetAttenuation(15.5f, 0b11001100);
+				current_att_down=0b11101100;
+				current_att_up=0b11101100;
 
 				ary2 = 1;
 				ary = 1;
@@ -844,14 +846,15 @@ int main(void)
 
 				HAL_Delay(100);
 
-				MCP4922_Write(0, 10); //160
-				MCP4922_Write(1, 10);
+				MCP4922_Write(0, 120); //160
+				MCP4922_Write(1, 120);
 
 				HAL_Delay(100);
 
 				break;
 			}
 		}
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
