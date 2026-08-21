@@ -90,8 +90,8 @@ const attValues_t attValue[] = {
 
 };
 
-uint8_t current_att_down = 0xBC; // начальное значение (9 дБ)
-uint8_t current_att_up   = 0xBC;
+uint8_t current_att_down = 0b10101100; // начальное значение (9 дБ)
+uint8_t current_att_up   = 0b10101100;
 
 /* USER CODE END PM */
 
@@ -557,6 +557,7 @@ uint16_t read_adc_channel(ADC_HandleTypeDef *hadc, uint32_t channel) {
     HAL_ADC_Stop(hadc);
     return raw;
 }
+
 /* USER CODE END 0 */
 
 /**
@@ -612,10 +613,10 @@ int main(void)
 	HMC_Reset();
 	HMC2_Reset();
 
-	HMC_SetAttenuation(15.5f, 0b10111100); //0b10011100
-	HMC_SetAttenuation2(15.5f, 0b10111100);
-	current_att_down=0b10111100;
-	current_att_up=0b10111100;
+	HMC_SetAttenuation(15.5f, 0b11101100); //тут менять уровни!
+	HMC_SetAttenuation2(15.5f, 0b11101100);
+	current_att_down=0b11101100;
+	current_att_up=0b11101100;
 	HAL_GPIO_WritePin(SHDN_GPIO_Port, SHDN_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(LDAC_GPIO_Port, LDAC_Pin, GPIO_PIN_RESET);
 	HAL_Delay(100);
@@ -633,7 +634,9 @@ int main(void)
 	//HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
 	uint32_t trigger_dac0 = 0;
 	uint32_t trigger_dac1 = 0;
-
+	MCP4922_Write(1, 1200);
+	MCP4922_Write(0, 1200);
+	//MCP4922_Write(1, dac_rssi_table[i].dac_value);
 	while (1) {
 		//HAL_Delay(1);
 		const int toggle_led_freq_divider = 10;
