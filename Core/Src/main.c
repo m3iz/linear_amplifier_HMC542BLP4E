@@ -91,7 +91,7 @@ const attValues_t attValue[] = {
 };
 
 uint8_t current_att_down = 0b10101100; // начальное значение (9 дБ)
-uint8_t current_att_up   = 0b10101100;
+uint8_t current_att_up = 0b10101100;
 
 /* USER CODE END PM */
 
@@ -125,7 +125,6 @@ uint8_t received_bytes_arr[10000] = { 0 };
 int received_bytes_arr_ptr = 0;
 
 int ary = 0;
-
 
 int ary2 = 0;
 int rssi2 = 0;
@@ -497,30 +496,30 @@ uint16_t diag_build_reply(uint8_t *buf, uint16_t addr, uint8_t req,
 
 void send_telemetry_reply(uint16_t addr, uint8_t req) {
 
-    //uint8_t rssi = 0; // заглушка
+	//uint8_t rssi = 0; // заглушка
 
-    // Старшие 8 бит напряжения (adc_raw_vin — 12 бит, сдвигаем на 2)
-    uint8_t adcvin = adc_raw_vin >> 2;
-    // Младшие 2 бита напряжения (и других каналов) — пока только для vin
-    uint8_t lsbs = (adc_raw_vin & 0x03) << 6; // биты 6-7 для vin
+	// Старшие 8 бит напряжения (adc_raw_vin — 12 бит, сдвигаем на 2)
+	uint8_t adcvin = adc_raw_vin >> 2;
+	// Младшие 2 бита напряжения (и других каналов) — пока только для vin
+	uint8_t lsbs = (adc_raw_vin & 0x03) << 6; // биты 6-7 для vin
 
-    // Пока другие АЦП не используются, заполняем нулями
-    uint8_t adcvid = 0;
-    uint8_t adcul  = 0;
-    uint8_t adcdl  = 0;
-    // можно добавить lsbs для них, если будут
+	// Пока другие АЦП не используются, заполняем нулями
+	uint8_t adcvid = 0;
+	uint8_t adcul = 0;
+	uint8_t adcdl = 0;
+	// можно добавить lsbs для них, если будут
 
-    // В поле amp передаём коды аттенюации (down — старший байт, up — младший)
-    uint16_t amp = (current_att_down << 8) | current_att_up | 0x8000;
+	// В поле amp передаём коды аттенюации (down — старший байт, up — младший)
+	uint16_t amp = (current_att_down << 8) | current_att_up | 0x8000;
 
-    uint8_t buf[128];
-    uint16_t len = diag_build_reply(buf, addr, req, rssi, adcvid, adcul, adcdl,
-                                    adcvin, lsbs, amp);
-    if (len) {
-        //CC1200_tx_init();      // переключить на передачу
-        CC1200_send_packet(buf, len);
-        //CC1200_rx_init();      // вернуться на приём
-    }
+	uint8_t buf[128];
+	uint16_t len = diag_build_reply(buf, addr, req, rssi, adcvid, adcul, adcdl,
+			adcvin, lsbs, amp);
+	if (len) {
+		//CC1200_tx_init();      // переключить на передачу
+		CC1200_send_packet(buf, len);
+		//CC1200_rx_init();      // вернуться на приём
+	}
 }
 
 void CC1200_rx_read_fifo_burst(uint8_t *buffer, uint8_t len) {
@@ -545,59 +544,60 @@ void unpack_amp_settings(uint16_t amp_word, struct amp_settings *a) {
 }
 
 uint16_t read_adc_channel(ADC_HandleTypeDef *hadc, uint32_t channel) {
-    ADC_ChannelConfTypeDef sConfig = {0};
-    sConfig.Channel = channel;
-    sConfig.Rank = ADC_REGULAR_RANK_1;              // вместо ADC_RANK_CHANNEL_NUMBER
-    sConfig.SamplingTime = ADC_SAMPLETIME_4CYCLES_5; // вместо ADC_SAMPLETIME_84CYCLES_5
-    if (HAL_ADC_ConfigChannel(hadc, &sConfig) != HAL_OK) return 0;
+	ADC_ChannelConfTypeDef sConfig = { 0 };
+	sConfig.Channel = channel;
+	sConfig.Rank = ADC_REGULAR_RANK_1;         // вместо ADC_RANK_CHANNEL_NUMBER
+	sConfig.SamplingTime = ADC_SAMPLETIME_4CYCLES_5; // вместо ADC_SAMPLETIME_84CYCLES_5
+	if (HAL_ADC_ConfigChannel(hadc, &sConfig) != HAL_OK)
+		return 0;
 
-    HAL_ADC_Start(hadc);
-    if (HAL_ADC_PollForConversion(hadc, 10) != HAL_OK) return 0;
-    uint16_t raw = HAL_ADC_GetValue(hadc);
-    HAL_ADC_Stop(hadc);
-    return raw;
+	HAL_ADC_Start(hadc);
+	if (HAL_ADC_PollForConversion(hadc, 10) != HAL_OK)
+		return 0;
+	uint16_t raw = HAL_ADC_GetValue(hadc);
+	HAL_ADC_Stop(hadc);
+	return raw;
 }
 
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
+ * @brief  The application entry point.
+ * @retval int
+ */
+int main(void) {
 
-  /* USER CODE BEGIN 1 */
+	/* USER CODE BEGIN 1 */
 
-  /* USER CODE END 1 */
+	/* USER CODE END 1 */
 
-  /* MCU Configuration--------------------------------------------------------*/
+	/* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
 
-  /* USER CODE BEGIN Init */
+	/* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+	/* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	/* Configure the system clock */
+	SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+	/* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+	/* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_TIM2_Init();
-  MX_SPI1_Init();
-  MX_ADC1_Init();
-  /* USER CODE BEGIN 2 */
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_TIM2_Init();
+	MX_SPI1_Init();
+	MX_ADC1_Init();
+	/* USER CODE BEGIN 2 */
 
-  HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
+	HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED);
 
-  adc_raw_vin = read_adc_channel(&hadc1, ADC_CHANNEL_11);
-  float voltage = adc_raw_vin * 3.3f / 4096.0f * 17.7f;
+	adc_raw_vin = read_adc_channel(&hadc1, ADC_CHANNEL_11);
+	float voltage = adc_raw_vin * 3.3f / 4096.0f * 17.7f;
 	// Инициализация начального состояния пинов
 	HAL_GPIO_WritePin(LE_GPIO_Port, LE_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(SHIFT_CLK_GPIO_Port, SHIFT_CLK_Pin, GPIO_PIN_RESET);
@@ -615,8 +615,8 @@ int main(void)
 
 	HMC_SetAttenuation(15.5f, 0b11101100); //тут менять уровни!
 	HMC_SetAttenuation2(15.5f, 0b11101100);
-	current_att_down=0b11101100;
-	current_att_up=0b11101100;
+	current_att_down = 0b11101100;
+	current_att_up = 0b11101100;
 	HAL_GPIO_WritePin(SHDN_GPIO_Port, SHDN_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(LDAC_GPIO_Port, LDAC_Pin, GPIO_PIN_RESET);
 	HAL_Delay(100);
@@ -628,10 +628,10 @@ int main(void)
 	//CC1200_init();
 	CC1200_rx_init();
 	//HMC_SetAttenuation(15.5f, 0b01011100);
-  /* USER CODE END 2 */
+	/* USER CODE END 2 */
 
-  /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
 	//HAL_GPIO_WritePin(CS_GPIO_Port, CS_Pin, GPIO_PIN_SET);
 	uint32_t trigger_dac0 = 0;
 	uint32_t trigger_dac1 = 0;
@@ -649,16 +649,17 @@ int main(void)
 			uint8_t num_bytes = CC1200_rx_read_reg(CC1200_NUM_RXBYTES);
 			if (num_bytes > 0) {
 				uint8_t rx_packet[128];
- 				CC1200_rx_read_fifo_burst(rx_packet, num_bytes);
+				CC1200_rx_read_fifo_burst(rx_packet, num_bytes);
 				uint8_t start = 0;
-				    while (start < num_bytes && rx_packet[start] == 0xAA) start++;
-				    if (start > num_bytes) {
-				        CC1200_rx_send_command(CC1200_SFRX);
-				        break;
-				    }
-				    uint8_t packet_len = num_bytes - start;
-				        memmove(rx_packet, &rx_packet[start], packet_len);
-				        num_bytes = packet_len;
+				while (start < num_bytes && rx_packet[start] == 0xAA)
+					start++;
+				if (start > num_bytes) {
+					CC1200_rx_send_command(CC1200_SFRX);
+					break;
+				}
+				uint8_t packet_len = num_bytes - start;
+				memmove(rx_packet, &rx_packet[start], packet_len);
+				num_bytes = packet_len;
 
 				if (!diag_descramble(rx_packet, num_bytes)) {
 					// пакет невалиден – игнорируем
@@ -684,12 +685,12 @@ int main(void)
 
 				if (req == 0) { // PCK_REQ_GENERAL
 					uint16_t src_addr = (rx_packet[1] << 8) | rx_packet[2];
-										//CC1200_tx_init();
-										CC1200_tx_init();
-										send_telemetry_reply(src_addr, 0);
-										CC1200_rx_send_command(CC1200_SFRX);
-										CC1200_rx_init();
-										adc_raw_vin = read_adc_channel(&hadc1, ADC_CHANNEL_11); // МОЖНО СДЕЛАТЬ ПО ТАЙМЕРУ
+					//CC1200_tx_init();
+					CC1200_tx_init();
+					send_telemetry_reply(src_addr, 0);
+					CC1200_rx_send_command(CC1200_SFRX);
+					CC1200_rx_init();
+					adc_raw_vin = read_adc_channel(&hadc1, ADC_CHANNEL_11); // МОЖНО СДЕЛАТЬ ПО ТАЙМЕРУ
 				} else if (req == 2) { // PCK_SET_PARAMS
 					if (data_len >= 2) {
 						uint16_t amp_word = (data_ptr[1] << 8) | data_ptr[0]; // little-endian: младший байт первым
@@ -718,7 +719,7 @@ int main(void)
 						uint8_t code_down = data_ptr[0];
 						uint8_t code_up = data_ptr[1];
 						current_att_down = code_down;
-						current_att_up   = code_up;
+						current_att_up = code_up;
 						HMC_SetAttenuation(0, code_down);
 						HMC_SetAttenuation2(0, code_up);
 					} else if (data_len == 1) {
@@ -767,6 +768,13 @@ int main(void)
 				MCP4922_Write(1, dac_rssi_table[i].dac_value);
 			}
 
+			if ((i % 2 == 0) && (ary2 == 1) && (ary == 1)) {
+				MCP4922_Write(1, 1500);
+				MCP4922_Write(0, 1500);
+			} else if ((i % 2 != 0) && (ary2 == 1) && (ary == 1)) {
+				MCP4922_Write(1, 100);
+				MCP4922_Write(0, 100);
+			}
 			HAL_Delay(10);
 
 			/* -------- CHANNEL 1 -------- */
@@ -782,14 +790,25 @@ int main(void)
 						ch1_ready = 1;
 						trigger_dac0 = dac_rssi_table[i].dac_value;
 					}
+				} else if ((ary2 == 1) && (i % 2 == 0)) {
+					HMC_SetAttenuation(15.5f, 0b10000100);
+					HMC_SetAttenuation2(15.5f, 0b10000100);
+					current_att_down = 0b10000100;
+					current_att_up = 0b10000100;
+					ary2 = 2;
+					ary = 2;
+					MCP4922_Write(1, 45);
+					MCP4922_Write(0, 45);
 				}
 
 			} else {
 
-				if (ary2 == 1) {
+				if ((ary2 == 1) && (i % 2 != 0)) {
 
-					HMC_SetAttenuation(15.5f, current_att_down);
-					HMC_SetAttenuation2(15.5f, current_att_up);
+					HMC_SetAttenuation(15.5f, 0b11101100);
+					HMC_SetAttenuation2(15.5f, 0b11101100);
+					current_att_down = 0b11101100;
+					current_att_up = 0b11101100;
 					ary = 0;
 					ary2 = 0;
 
@@ -797,6 +816,15 @@ int main(void)
 						HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin,
 								GPIO_PIN_RESET);
 					}
+					break;
+				} else if (ary2 == 2) {
+					HMC_SetAttenuation2(15.5f, 0b11001100);
+					HMC_SetAttenuation(15.5f, 0b11001100);
+					current_att_down = 0b11101100;
+					current_att_up = 0b11101100;
+
+					ary2 = 1;
+					ary = 1;
 				}
 			}
 
@@ -813,20 +841,41 @@ int main(void)
 						ch2_ready = 1;
 						trigger_dac1 = dac_rssi_table[i].dac_value;
 					}
+				} else if ((ary == 1) && (i % 2 == 0)) {
+
+					HMC_SetAttenuation(15.5f, 0b10000100);
+					HMC_SetAttenuation2(15.5f, 0b10000100);
+					current_att_down = 0b10000100;
+					current_att_up = 0b10000100;
+					ary = 2;
+					ary2 = 2;
+					MCP4922_Write(1, 45);
+					MCP4922_Write(0, 45);
 				}
 
 			} else {
 
-				if (ary == 1) {
+				if ((ary == 1) && (i % 2 != 0)) {
 
-					HMC_SetAttenuation(15.5f, current_att_down);
-					HMC_SetAttenuation2(15.5f, current_att_up);
+					HMC_SetAttenuation(15.5f, 0b10101100);
+					HMC_SetAttenuation2(15.5f, 0b10101100);
+					current_att_down = 0b10101100;
+					current_att_up = 0b10101100;
 					ary = 0;
 					ary2 = 0;
 					if (ary2 == 0) {
 						HAL_GPIO_WritePin(LED3_GPIO_Port, LED3_Pin,
 								GPIO_PIN_RESET);
 					}
+					break;
+				} else if (ary == 2) {
+					HMC_SetAttenuation2(15.5f, 0b11001100);
+					HMC_SetAttenuation(15.5f, 0b11001100);
+					current_att_down = 0b11101100;
+					current_att_up = 0b11101100;
+
+					ary2 = 1;
+					ary = 1;
 				}
 			}
 
@@ -836,8 +885,8 @@ int main(void)
 
 				HMC_SetAttenuation2(15.5f, 0b11001100);
 				HMC_SetAttenuation(15.5f, 0b11001100);
-				current_att_down=0b11101100;
-				current_att_up=0b11101100;
+				current_att_down = 0b11101100;
+				current_att_up = 0b11101100;
 
 				ary2 = 1;
 				ary = 1;
@@ -846,7 +895,7 @@ int main(void)
 
 				HAL_Delay(100);
 
-				MCP4922_Write(0, 100); //160 //120
+				MCP4922_Write(0, 100); //160 //120 выключение
 				MCP4922_Write(1, 100);
 
 				HAL_Delay(100);
@@ -855,57 +904,53 @@ int main(void)
 			}
 		}
 
-    /* USER CODE END WHILE */
+		/* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+		/* USER CODE BEGIN 3 */
 	}
 
-  /* USER CODE END 3 */
+	/* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-void SystemClock_Config(void)
-{
-  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
-  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+ * @brief System Clock Configuration
+ * @retval None
+ */
+void SystemClock_Config(void) {
+	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
+	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
+	RCC_PeriphCLKInitTypeDef PeriphClkInit = { 0 };
 
-  /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
-  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL12;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	/** Initializes the RCC Oscillators according to the specified parameters
+	 * in the RCC_OscInitTypeDef structure.
+	 */
+	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+	RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL12;
+	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+		Error_Handler();
+	}
 
-  /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+	/** Initializes the CPU, AHB and APB buses clocks
+	 */
+	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
+			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
+	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC12;
-  PeriphClkInit.Adc12ClockSelection = RCC_ADC12PLLCLK_DIV1;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    Error_Handler();
-  }
+	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK) {
+		Error_Handler();
+	}
+	PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC12;
+	PeriphClkInit.Adc12ClockSelection = RCC_ADC12PLLCLK_DIV1;
+	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
+		Error_Handler();
+	}
 }
 
 /* USER CODE BEGIN 4 */
@@ -913,17 +958,16 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
-void Error_Handler(void)
-{
-  /* USER CODE BEGIN Error_Handler_Debug */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
+void Error_Handler(void) {
+	/* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
 	__disable_irq();
 	while (1) {
 	}
-  /* USER CODE END Error_Handler_Debug */
+	/* USER CODE END Error_Handler_Debug */
 }
 #ifdef USE_FULL_ASSERT
 /**
