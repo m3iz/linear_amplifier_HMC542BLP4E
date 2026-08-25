@@ -846,8 +846,8 @@ int main(void)
 
 				HAL_Delay(100);
 
-				MCP4922_Write(0, 120); //160
-				MCP4922_Write(1, 120);
+				MCP4922_Write(0, 100); //160 //120
+				MCP4922_Write(1, 100);
 
 				HAL_Delay(100);
 
